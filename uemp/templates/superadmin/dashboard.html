@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}University dashboard{% endblock %}
+{% block content %}
+<div class="card hero mb-4">
+  <div class="card-body p-4 position-relative" style="z-index:1">
+    <div class="row g-4 align-items-center">
+      <div class="col-lg-5">
+        <div class="eyebrow" style="color: var(--accent)">Super Admin</div>
+        <h1 class="h3 fw-bold mt-1 mb-1">University overview</h1>
+        <div class="muted">{{ semester.name if semester else "No current semester set" }}
+          {% if semester %}· Registration {{ 'open' if semester.registration_open else 'closed' }}{% endif %}</div>
+      </div>
+      <div class="col-lg-7"><div class="row g-2">
+        <div class="col-3"><div class="hero-metric"><div class="v">{{ counts.faculties }}</div><div class="l">Faculties</div></div></div>
+        <div class="col-3"><div class="hero-metric"><div class="v">{{ counts.departments }}</div><div class="l">Departments</div></div></div>
+        <div class="col-3"><div class="hero-metric"><div class="v">{{ counts.programs }}</div><div class="l">Programmes</div></div></div>
+        <div class="col-3"><div class="hero-metric"><div class="v">{{ counts.courses }}</div><div class="l">Courses</div></div></div>
+      </div></div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3">{{ ui.stat("Active students", counts.students, "people", "green") }}</div>
+  <div class="col-6 col-xl-3">{{ ui.stat("Active lecturers", counts.lecturers, "person-workspace", "blue") }}</div>
+  <div class="col-6 col-xl-3">{{ ui.stat("Registrations", counts.registrations, "card-checklist", "violet", "this semester") }}</div>
+  <div class="col-6 col-xl-3">{{ ui.stat("Results pending approval", counts.pending_results, "hourglass-split", "gold", counts.approved_results ~ " approved") }}</div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card mb-4"><div class="card-header">Students per department</div><div class="card-body">
+      {% set top = (per_department | map(attribute=1) | max) if per_department else 0 %}
+      {% for dept, n in per_department %}
+        <div class="bar-row"><span class="text-truncate" title="{{ dept.name }}">{{ dept.code }}</span><div class="bar"><span style="width: {{ 100 * n / top if top else 0 }}%"></span></div><span class="text-end fw-semibold">{{ n }}</span></div>
+      {% else %}<div class="muted small">No departments yet.</div>{% endfor %}
+    </div></div>
+    <div class="card"><div class="card-header">Result sheets · this semester</div><div class="card-body">
+      {% for key in ['draft', 'submitted', 'returned', 'approved'] %}
+        <div class="d-flex justify-content-between py-1"><span>{{ ui.status_badge(key) }}</span><strong>{{ status_breakdown.get(key, 0) }}</strong></div>
+      {% endfor %}
+      <a href="{{ url_for('admin.results', status='all') }}" class="small d-block mt-2">Oversee approvals →</a>
+    </div></div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card mb-4"><div class="card-header">Grade distribution (approved)</div><div class="card-body">
+      {{ ui.bars(distribution | dictsort | map('list') | list) }}</div></div>
+    <div class="card"><div class="card-header">Management</div>
+      <div class="list-group list-group-flush">
+        <a class="list-group-item list-group-item-action" href="{{ url_for('superadmin.faculties') }}"><i class="bi bi-building me-2"></i>Faculties & departments</a>
+        <a class="list-group-item list-group-item-action" href="{{ url_for('superadmin.sessions') }}"><i class="bi bi-calendar3 me-2"></i>Sessions & semesters</a>
+        <a class="list-group-item list-group-item-action" href="{{ url_for('superadmin.users') }}"><i class="bi bi-person-gear me-2"></i>User accounts</a>
+        <a class="list-group-item list-group-item-action" href="{{ url_for('admin.reports') }}"><i class="bi bi-bar-chart-line me-2"></i>University-wide reports</a>
+        {% if counts.unallocated_courses %}<a class="list-group-item list-group-item-action text-warning-emphasis" href="{{ url_for('admin.allocations') }}"><i class="bi bi-exclamation-triangle me-2"></i>{{ counts.unallocated_courses }} courses without a lecturer</a>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card"><div class="card-header"><span>System activity</span><a href="{{ url_for('superadmin.audit') }}" class="small">Full audit trail</a></div>
+      <div class="card-body">
+        <ul class="timeline">
+          {% for a in recent %}
+            <li><div class="small">{{ a.description | truncate(110) }}</div>
+              <div class="small muted">{{ a.actor.display_name if a.actor else 'System' }} · {{ a.created_at | dt }}</div></li>
+          {% else %}<li class="small muted">No activity yet.</li>{% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

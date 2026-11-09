@@ -1,0 +1,23 @@
+{# error.html — One friendly page for 400 / 403 / 404 / 500 errors. #}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ title }} · UEMP</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+</head>
+<body class="d-grid" style="min-height: 100vh; place-items: center">
+  <div class="text-center p-4" style="max-width: 460px">
+    <div class="stat-icon tone-{{ 'rose' if code == 403 else 'gold' }} mx-auto mb-3" style="width:64px;height:64px;font-size:1.8rem">
+      <i class="bi bi-{{ 'shield-lock' if code == 403 else 'signpost-split' if code == 404 else 'exclamation-triangle' }}"></i>
+    </div>
+    <div class="eyebrow">Error {{ code }}</div>
+    <h1 class="h3 fw-bold mt-1">{{ title }}</h1>
+    <p class="muted">{{ message }}</p>
+    <a href="{{ url_for('main.home') }}" class="btn btn-primary mt-2"><i class="bi bi-house me-1"></i> Go to my dashboard</a>
+  </div>
+</body>
+</html>

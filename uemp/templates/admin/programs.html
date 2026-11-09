@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Programmes{% endblock %}
+{% block content %}
+{% call ui.page_head("Programmes", "Degree programmes and their academic levels.", "Academics") %}
+  <form method="get">{{ ui.dept_filter(filter_departments) }}</form>
+  <a class="btn btn-primary" href="{{ url_for('admin.programs_new') }}"><i class="bi bi-plus-lg me-1"></i>New programme</a>
+{% endcall %}
+<div class="card table-card">
+  {% if rows %}
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead><tr><th>Code</th><th>Programme</th><th>Department</th><th>Levels</th><th class="text-center">Students</th><th></th></tr></thead>
+      <tbody>
+      {% for program, students in rows %}
+        <tr>
+          <td class="mono">{{ program.code }}</td>
+          <td class="fw-semibold">{{ program.degree }} {{ program.name }}</td>
+          <td class="small">{{ program.department.name }}</td>
+          <td class="small">100 – {{ program.max_level }} Level <span class="muted">({{ program.duration_years }} yrs)</span></td>
+          <td class="text-center">{{ students }}</td>
+          <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin.programs_edit', program_id=program.id) }}">Edit</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("No programmes yet", "Create the first programme for your department.", "diagram-3") }}
+  {% endif %}
+</div>
+<p class="small muted mt-3"><i class="bi bi-info-circle me-1"></i>Academic levels run from 100 Level up to the programme's duration × 100 (e.g. a 5-year B.Eng. ends at 500 Level).</p>
+{% endblock %}

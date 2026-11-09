@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Course allocation{% endblock %}
+{% block content %}
+{% call ui.page_head("Course allocation", "Assign one lecturer to each course for the semester.", "Academics") %}
+  <form method="get" class="d-flex gap-2">{{ ui.semester_select(semesters, semester) }}{{ ui.dept_filter(filter_departments) }}</form>
+{% endcall %}
+
+{% if not semester %}
+  <div class="card">{{ ui.empty("No semester yet", "The Super Admin needs to create a session first.", "calendar-x") }}</div>
+{% else %}
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">Assign a lecturer</div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {{ form.hidden_tag() }}
+          <div class="row g-3">{{ ui.field(form.course_id) }}{{ ui.field(form.lecturer_id) }}</div>
+          <button class="btn btn-primary mt-3 w-100"><i class="bi bi-person-check me-1"></i>Assign</button>
+        </form>
+        <div class="small muted mt-3">Only {{ semester.term_label | lower }} courses are listed. Choosing a course that already has a lecturer replaces them (until results are submitted).</div>
+      </div>
+    </div>
+    {% if unallocated %}
+    <div class="card mt-4">
+      <div class="card-header"><span><i class="bi bi-exclamation-triangle text-warning me-1"></i>Without a lecturer</span><span class="badge badge-soft st-submitted">{{ unallocated | length }}</span></div>
+      <div class="card-body small">{% for c in unallocated %}<span class="badge text-bg-light border me-1 mb-1">{{ c.code }}</span>{% endfor %}</div>
+    </div>
+    {% endif %}
+  </div>
+  <div class="col-lg-8">
+    <div class="card table-card">
+      <div class="card-header">Allocations · {{ semester.name }}</div>
+      {% if rows %}
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead><tr><th>Course</th><th>Lecturer</th><th>Department</th><th></th></tr></thead>
+          <tbody>
+          {% for a in rows %}
+            <tr>
+              <td><div class="fw-semibold">{{ a.course.code }}</div><div class="small muted">{{ a.course.title }}</div></td>
+              <td>{{ a.lecturer.display_name }}<div class="small muted">{{ a.lecturer.lecturer_profile.staff_id if a.lecturer.lecturer_profile }}</div></td>
+              <td class="small">{{ a.course.department.code }}</td>
+              <td class="text-end">
+                <form method="post" action="{{ url_for('admin.allocations_delete', allocation_id=a.id) }}">{{ ui.csrf() }}
+                  <button class="btn btn-sm btn-link text-danger" data-confirm="Remove {{ a.lecturer.display_name }} from {{ a.course.code }}?"><i class="bi bi-trash"></i></button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        {{ ui.empty("No allocations yet", "Use the form to assign lecturers.", "person-check") }}
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

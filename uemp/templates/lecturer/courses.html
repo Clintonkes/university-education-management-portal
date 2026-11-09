@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}My courses{% endblock %}
+{% block content %}
+{{ ui.page_head("My courses", "Every course allocated to you, across all semesters.", "Teaching") }}
+<div class="card table-card">
+  {% if rows %}
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead><tr><th>Semester</th><th>Course</th><th class="text-center">Units</th><th>Result status</th><th>Last review</th><th></th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td class="small">{{ r.allocation.semester.name }}{% if r.allocation.semester.is_current %} <span class="badge badge-soft st-approved">current</span>{% endif %}</td>
+          <td><div class="fw-semibold">{{ r.allocation.course.code }}</div><div class="small muted">{{ r.allocation.course.title }}</div></td>
+          <td class="text-center">{{ r.allocation.course.units }}</td>
+          <td>{{ ui.status_badge(r.sheet.status if r.sheet else 'draft') }}</td>
+          <td class="small muted">{{ r.sheet.reviewed_at | dt if r.sheet else '—' }}</td>
+          <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('lecturer.courses_detail', allocation_id=r.allocation.id) }}">Open</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("No courses yet", "Courses allocated to you will appear here.", "journal") }}
+  {% endif %}
+</div>
+{% endblock %}

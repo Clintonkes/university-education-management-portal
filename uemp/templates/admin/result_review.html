@@ -1,0 +1,91 @@
+{#
+  result_review.html — Workflow 3. The department admin reads the whole
+  score sheet, checks the summary and decides: Approve / Return (reject),
+  or Reopen an already-approved sheet. A comment is required to return/reopen.
+#}
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Review {{ sheet.course.code }}{% endblock %}
+{% block content %}
+{% call ui.page_head(sheet.course.code ~ " · " ~ sheet.course.title, sheet.semester.name ~ " · Lecturer: " ~ sheet.lecturer.display_name, "Result review") %}
+  <a class="btn btn-light" href="{{ url_for('admin.results') }}"><i class="bi bi-arrow-left me-1"></i>Back</a>
+{% endcall %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3"><div class="card"><div class="stat"><div class="stat-icon tone-slate"><i class="bi bi-flag"></i></div>
+    <div><div class="mb-1">{{ ui.status_badge(sheet.status) }}</div><div class="stat-label">Submitted {{ sheet.submitted_at | dt }}</div></div></div></div></div>
+  <div class="col-6 col-lg-3">{{ ui.stat("Students", summary.students, "people", "blue") }}</div>
+  <div class="col-6 col-lg-3">{{ ui.stat("Class average", summary.average if summary.average is not none else "—", "bar-chart", "green",
+                                          ("High " ~ summary.highest|score ~ " · Low " ~ summary.lowest|score) if summary.average is not none else None) }}</div>
+  <div class="col-6 col-lg-3">{{ ui.stat("Pass rate", (summary.pass_rate ~ "%") if summary.pass_rate is not none else "—", "check2-circle", "gold") }}</div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-8">
+    <div class="card table-card">
+      <div class="card-header"><span>Scores</span>
+        <span class="small fw-normal">{% for g, n in summary.grades | dictsort %}<span class="me-2">{{ ui.grade(g) }} {{ n }}</span>{% endfor %}</span></div>
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead><tr><th>#</th><th>Matric No.</th><th>Student</th><th class="text-center">CA</th><th class="text-center">Exam</th><th class="text-center">Total</th><th class="text-center">Grade</th></tr></thead>
+          <tbody>
+          {% for e in entries %}
+            <tr>
+              <td class="muted">{{ loop.index }}</td>
+              <td class="mono">{{ e.registration.student.student_profile.matric_number }}</td>
+              <td>{{ e.registration.student.full_name }}</td>
+              <td class="text-center">{{ e.ca_score | score }}</td><td class="text-center">{{ e.exam_score | score }}</td>
+              <td class="text-center fw-semibold">{{ e.total | score }}</td><td class="text-center">{{ ui.grade(e.grade) }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card mb-4">
+      <div class="card-header">Decision</div>
+      <div class="card-body">
+        {% if sheet.status in ['submitted', 'approved'] and sheet.lecturer_id != current_user.id %}
+        <form method="post" action="{{ url_for('admin.results_decision', sheet_id=sheet.id) }}">
+          {{ form.hidden_tag() }}
+          {{ form.comment.label(class="form-label fw-medium") }}
+          {{ form.comment(class="form-control mb-3", rows=4, placeholder="Required when returning or reopening.") }}
+          {% if sheet.status == 'submitted' %}
+            <div class="d-grid gap-2">
+              <button name="decision" value="approve" class="btn btn-primary" data-confirm="Approve and publish these results to students?"><i class="bi bi-patch-check me-1"></i>Approve & publish</button>
+              <button name="decision" value="reject" class="btn btn-outline-danger"><i class="bi bi-arrow-return-left me-1"></i>Return for correction</button>
+            </div>
+          {% else %}
+            <button name="decision" value="reopen" class="btn btn-outline-danger w-100" data-confirm="Reopen approved results? Students will no longer see them until re-approved."><i class="bi bi-unlock me-1"></i>Reopen for correction</button>
+            <div class="small muted mt-2">Reopening is an authorised correction; it is recorded in the audit trail.</div>
+          {% endif %}
+        </form>
+        {% elif sheet.lecturer_id == current_user.id %}
+          <div class="small muted">You cannot review results you submitted yourself.</div>
+        {% else %}
+          <div class="small muted">This sheet is <strong>{{ sheet.status_enum.label | lower }}</strong>. There is nothing to decide until the lecturer submits it.</div>
+        {% endif %}
+        {% if sheet.review_comment %}<div class="alert alert-light border small mt-3 mb-0"><strong>Last comment:</strong> {{ sheet.review_comment }}</div>{% endif %}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Audit trail</div>
+      <div class="card-body">
+        {% if trail %}
+        <ul class="timeline">
+          {% for a in trail %}
+            <li><div class="small fw-semibold">{{ a.action.replace('result.', '').replace('_', ' ') | capitalize }}</div>
+              <div class="small">{{ a.description | truncate(160) }}</div>
+              <div class="small muted">{{ a.actor.display_name if a.actor else 'System' }} · {{ a.created_at | dt }}</div></li>
+          {% endfor %}
+        </ul>
+        {% else %}<div class="small muted">No recorded actions yet.</div>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

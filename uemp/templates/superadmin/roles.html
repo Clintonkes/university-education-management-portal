@@ -1,0 +1,38 @@
+{#
+  roles.html — Shows the RBAC table from security/permissions.py.
+  It is read from code (not typed by hand) so this page can never disagree
+  with what the server actually enforces.
+#}
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Roles & permissions{% endblock %}
+{% block content %}
+{{ ui.page_head("Roles & permissions", "What each role can do. Generated directly from the access-control rules the server enforces.", "University") }}
+<div class="card table-card mb-4">
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead><tr><th>Permission</th>{% for r in roles %}<th class="text-center">{{ r.label }}</th>{% endfor %}</tr></thead>
+      <tbody>
+      {% for perm, description in descriptions.items() %}
+        <tr>
+          <td><div class="fw-medium">{{ description }}</div><div class="small muted mono">{{ perm }}</div></td>
+          {% for r in roles %}
+            <td class="text-center fs-5">{% if perm in matrix[r] %}<i class="bi bi-check-circle-fill perm-yes"></i>{% else %}<i class="bi bi-dash perm-no"></i>{% endif %}</td>
+          {% endfor %}
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+<div class="row g-3">
+  <div class="col-md-6"><div class="card h-100"><div class="card-body small">
+    <div class="fw-semibold mb-1"><i class="bi bi-diagram-3 me-1"></i>Department scope</div>
+    Department Admins have the management permissions, but <strong>only for their own department</strong>. Every query and action is limited by <span class="mono">security/scope.py</span>.
+  </div></div></div>
+  <div class="col-md-6"><div class="card h-100"><div class="card-body small">
+    <div class="fw-semibold mb-1"><i class="bi bi-person-badge me-1"></i>Changing a person's role</div>
+    Use <a href="{{ url_for('superadmin.users') }}">User Accounts → Manage → Change role</a> to move staff between Lecturer, Department Admin and Super Admin.
+  </div></div></div>
+</div>
+{% endblock %}

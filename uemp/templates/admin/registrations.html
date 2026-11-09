@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Registrations{% endblock %}
+{% block content %}
+{% call ui.page_head("Course registrations", "Which students registered which courses.", "Academics") %}
+  {% if semester %}<a class="btn btn-light" href="{{ url_for('admin.registrations_csv', **request.args) }}"><i class="bi bi-download me-1"></i>Export CSV</a>{% endif %}
+{% endcall %}
+<div class="card table-card">
+  <div class="card-header">
+    <form class="filter-bar w-100" method="get">
+      {{ ui.semester_select(semesters, semester) }}
+      <input class="form-control" name="q" value="{{ request.args.get('q', '') }}" placeholder="Matric no. or name">
+      <select name="course_id" class="form-select"><option value="">All courses</option>
+        {% for id, label in courses %}<option value="{{ id }}" {{ 'selected' if request.args.get('course_id') == id|string }}>{{ label }}</option>{% endfor %}</select>
+      <select name="level" class="form-select"><option value="">All levels</option>
+        {% for lvl, label in levels %}<option value="{{ lvl }}" {{ 'selected' if request.args.get('level') == lvl|string }}>{{ label }}</option>{% endfor %}</select>
+      {{ ui.dept_filter(filter_departments) }}
+      <button class="btn btn-outline-primary"><i class="bi bi-funnel"></i> Filter</button>
+    </form>
+  </div>
+  {% if page and page.items %}
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead><tr><th>Matric No.</th><th>Student</th><th class="text-center">Level</th><th>Course</th><th class="text-center">Units</th><th>Registered</th></tr></thead>
+      <tbody>
+      {% for r in page.items %}
+        <tr>
+          <td class="mono">{{ r.student.student_profile.matric_number }}</td>
+          <td>{{ r.student.full_name }}</td>
+          <td class="text-center">{{ r.student.student_profile.level }}</td>
+          <td><span class="fw-semibold">{{ r.course.code }}</span> <span class="small muted">{{ r.course.title }}</span></td>
+          <td class="text-center">{{ r.course.units }}</td>
+          <td class="small muted">{{ r.created_at | dt }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ ui.pager(page, 'admin.registrations') }}
+  {% else %}
+    {{ ui.empty("No registrations found", "", "card-checklist") }}
+  {% endif %}
+</div>
+{% endblock %}

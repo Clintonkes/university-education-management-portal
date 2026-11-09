@@ -1,0 +1,77 @@
+{#
+  course_detail.html — Workflow 2 score sheet.
+  While the sheet is Draft/Returned the scores are input boxes; once
+  submitted or approved, they are read-only. Totals and grades preview live
+  in the browser (app.js) but the SERVER recalculates them when saving.
+#}
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% set course = allocation.course %}
+{% set editable = sheet.status in ['draft', 'returned'] %}
+{% block title %}{{ course.code }}{% endblock %}
+{% block content %}
+{% call ui.page_head(course.code ~ " · " ~ course.title, allocation.semester.name ~ " · " ~ course.units ~ " units · " ~ course.level ~ " Level", "Score sheet") %}
+  <a class="btn btn-light" href="{{ url_for('lecturer.courses_csv', allocation_id=allocation.id) }}"><i class="bi bi-download me-1"></i>Class list (CSV)</a>
+  <a class="btn btn-light" href="{{ url_for('lecturer.courses_print', allocation_id=allocation.id) }}"><i class="bi bi-printer me-1"></i>Print</a>
+{% endcall %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3"><div class="card"><div class="stat"><div class="stat-icon tone-slate"><i class="bi bi-flag"></i></div>
+    <div><div class="mb-1">{{ ui.status_badge(sheet.status) }}</div><div class="stat-label">Result status</div></div></div></div></div>
+  <div class="col-6 col-lg-3">{{ ui.stat("Students", summary.students, "people", "blue") }}</div>
+  <div class="col-6 col-lg-3">{{ ui.stat("Class average", summary.average if summary.average is not none else "—", "bar-chart", "green") }}</div>
+  <div class="col-6 col-lg-3">{{ ui.stat("Pass rate", (summary.pass_rate ~ "%") if summary.pass_rate is not none else "—", "check2-circle", "gold") }}</div>
+</div>
+
+{% if sheet.status == 'returned' and sheet.review_comment %}
+  <div class="alert alert-danger"><strong><i class="bi bi-chat-left-text me-1"></i>Feedback from {{ sheet.reviewed_by.display_name if sheet.reviewed_by else 'the department' }}:</strong> {{ sheet.review_comment }}</div>
+{% elif sheet.status == 'submitted' %}
+  <div class="alert alert-warning"><i class="bi bi-hourglass-split me-1"></i>Submitted {{ sheet.submitted_at | dt }}. Results are locked while the department reviews them.</div>
+{% elif sheet.status == 'approved' %}
+  <div class="alert alert-success"><i class="bi bi-patch-check me-1"></i>Approved {{ sheet.reviewed_at | dt }}{% if sheet.reviewed_by %} by {{ sheet.reviewed_by.display_name }}{% endif %}. Students can now see these results.</div>
+{% endif %}
+
+<div class="card table-card">
+  <div class="card-header">
+    <span>Class list & scores</span>
+    <span class="small muted fw-normal">CA max {{ max_ca }} · Exam max {{ max_exam }} · Total 100</span>
+  </div>
+  {% if entries %}
+  <form method="post" action="{{ url_for('lecturer.courses_scores', allocation_id=allocation.id) }}" novalidate>
+    {{ ui.csrf() }}
+    <div class="table-responsive">
+      <table class="table table-hover" data-score-sheet data-scale='{{ config.GRADING_SCALE | tojson }}'>
+        <thead><tr><th>#</th><th>Matric No.</th><th>Student</th><th class="text-center">CA ({{ max_ca }})</th><th class="text-center">Exam ({{ max_exam }})</th><th class="text-center">Total</th><th class="text-center">Grade</th></tr></thead>
+        <tbody>
+        {% for e in entries %}
+          {% set st = e.registration.student %}
+          <tr data-entry>
+            <td class="muted">{{ loop.index }}</td>
+            <td class="mono">{{ st.student_profile.matric_number }}</td>
+            <td>{{ st.full_name }}</td>
+            {% if editable %}
+              <td class="text-center"><input class="form-control form-control-sm score-input mx-auto" name="ca_{{ e.id }}" value="{{ e.ca_score | score }}" inputmode="decimal" max="{{ max_ca }}" data-ca aria-label="CA score for {{ st.student_profile.matric_number }}"></td>
+              <td class="text-center"><input class="form-control form-control-sm score-input mx-auto" name="exam_{{ e.id }}" value="{{ e.exam_score | score }}" inputmode="decimal" max="{{ max_exam }}" data-exam aria-label="Exam score for {{ st.student_profile.matric_number }}"></td>
+            {% else %}
+              <td class="text-center">{{ e.ca_score | score }}</td><td class="text-center">{{ e.exam_score | score }}</td>
+            {% endif %}
+            <td class="text-center fw-semibold" data-total>{{ e.total | score or '—' }}</td>
+            <td class="text-center" data-grade>{{ ui.grade(e.grade) }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% if editable %}
+    <div class="sticky-actions d-flex flex-wrap gap-2 align-items-center">
+      <span class="small muted me-auto"><i class="bi bi-info-circle me-1"></i>Save a draft any time. Submitting locks the sheet and sends it to your department.</span>
+      <button name="action" value="save" class="btn btn-outline-primary"><i class="bi bi-save me-1"></i>Save draft</button>
+      <button name="action" value="submit" class="btn btn-primary" data-confirm="Submit {{ course.code }} results for approval? You will not be able to edit them afterwards."><i class="bi bi-send me-1"></i>Submit for approval</button>
+    </div>
+    {% endif %}
+  </form>
+  {% else %}
+    {{ ui.empty("No students registered", "Students who register this course will appear here automatically.", "people") }}
+  {% endif %}
+</div>
+{% endblock %}

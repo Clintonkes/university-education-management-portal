@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Student dashboard{% endblock %}
+{% block content %}
+<div class="card hero mb-4">
+  <div class="card-body p-4 position-relative" style="z-index:1">
+    <div class="row align-items-center g-4">
+      <div class="col-lg-6">
+        <div class="eyebrow" style="color: var(--accent)">Student portal</div>
+        <h1 class="h3 fw-bold mt-1 mb-1">Welcome, {{ current_user.first_name }}</h1>
+        <div class="muted">{{ profile.program.degree }} {{ profile.program.name }} · {{ profile.level }} Level</div>
+        <div class="muted small mt-1"><span class="mono">{{ profile.matric_number }}</span> · {{ profile.program.department.name }} · {{ profile.program.department.faculty.name }}</div>
+      </div>
+      <div class="col-lg-6">
+        <div class="row g-2">
+          <div class="col-4"><div class="hero-metric"><div class="v">{{ history.cgpa | num }}</div><div class="l">CGPA</div></div></div>
+          <div class="col-4"><div class="hero-metric"><div class="v">{{ latest.gpa | num if latest else '—' }}</div><div class="l">Last GPA</div></div></div>
+          <div class="col-4"><div class="hero-metric"><div class="v">{{ history.total_units }}</div><div class="l">Units completed</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-8">
+    <div class="card table-card">
+      <div class="card-header">
+        <span><i class="bi bi-journal-check me-2 text-success"></i>Registered courses {% if semester %}<span class="muted fw-normal">· {{ semester.name }}</span>{% endif %}</span>
+        <a href="{{ url_for('student.registration') }}" class="btn btn-sm btn-outline-primary">Manage</a>
+      </div>
+      {% if registered %}
+      <div class="table-responsive">
+        <table class="table table-hover">
+          <thead><tr><th>Code</th><th>Title</th><th class="text-center">Units</th></tr></thead>
+          <tbody>
+          {% for r in registered %}
+            <tr><td class="fw-semibold">{{ r.course.code }}</td><td>{{ r.course.title }}</td><td class="text-center">{{ r.course.units }}</td></tr>
+          {% endfor %}
+          </tbody>
+          <tfoot><tr><td colspan="2" class="text-end fw-semibold">Total units</td><td class="text-center fw-bold">{{ total_units }}</td></tr></tfoot>
+        </table>
+      </div>
+      {% else %}
+        {{ ui.empty("No courses registered yet",
+                    "Registration is open — register your courses now." if semester and semester.registration_open else "Course registration is currently closed.",
+                    "journal-plus") }}
+        {% if semester and semester.registration_open %}<div class="text-center pb-4"><a class="btn btn-primary" href="{{ url_for('student.registration') }}">Register courses</a></div>{% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="card mb-4">
+      <div class="card-header">Quick links</div>
+      <div class="list-group list-group-flush">
+        <a class="list-group-item list-group-item-action" href="{{ url_for('student.results') }}"><i class="bi bi-clipboard-data me-2"></i>Semester results</a>
+        <a class="list-group-item list-group-item-action" href="{{ url_for('student.history') }}"><i class="bi bi-mortarboard me-2"></i>Academic history & CGPA</a>
+        {% if semester %}<a class="list-group-item list-group-item-action" href="{{ url_for('student.registration_slip', semester_id=semester.id) }}"><i class="bi bi-printer me-2"></i>Print registration slip</a>{% endif %}
+        <a class="list-group-item list-group-item-action" href="{{ url_for('student.statement') }}"><i class="bi bi-file-earmark-text me-2"></i>Statement of result</a>
+        <a class="list-group-item list-group-item-action" href="{{ url_for('student.profile') }}"><i class="bi bi-person-vcard me-2"></i>Update my profile</a>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">Standing</div>
+      <div class="card-body">
+        <div class="d-flex justify-content-between"><span class="muted">Classification</span><strong>{{ history.classification }}</strong></div>
+        <div class="d-flex justify-content-between mt-2"><span class="muted">Semesters with results</span><strong>{{ history.semesters | length }}</strong></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

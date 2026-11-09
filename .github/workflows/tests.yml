@@ -1,0 +1,65 @@
+# Runs on every push and pull request on GitHub.
+#   1. lint      - catches mistakes like unused/undefined names
+#   2. sqlite    - full test suite on SQLite (fast)
+#   3. postgres  - full test suite on PostgreSQL (the same kind of database as Neon)
+#   4. browser   - real Chromium clicking through all four workflows
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install ruff==0.17.4
+      - run: ruff check --select F,E9,B .
+
+  sqlite:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements.txt
+      - run: pytest -q
+
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: uemp_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/uemp_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements.txt
+      - run: pytest -q
+
+  browser:
+    runs-on: ubuntu-latest
+    env:
+      RUN_E2E: "1"
+      E2E_SCREENSHOTS: screenshots
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements-dev.txt
+      - run: playwright install --with-deps chromium
+      - run: pytest tests/e2e -v
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: e2e-screenshots, path: screenshots }

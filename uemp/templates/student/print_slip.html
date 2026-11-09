@@ -1,0 +1,26 @@
+{% extends "base_print.html" %}
+{% block title %}Course registration slip{% endblock %}
+{% block doc_subtitle %}Course Registration Form · {{ semester.name }}{% endblock %}
+{% block document %}
+<table class="kv mb-3">
+  <tr><td>Name</td><td class="fw-semibold">{{ current_user.full_name }}</td><td class="ps-4">Matric No.</td><td class="fw-semibold mono">{{ profile.matric_number }}</td></tr>
+  <tr><td>Programme</td><td>{{ profile.program.degree }} {{ profile.program.name }}</td><td class="ps-4">Level</td><td>{{ profile.level }}</td></tr>
+  <tr><td>Department</td><td>{{ profile.program.department.name }}</td><td class="ps-4">Faculty</td><td>{{ profile.program.department.faculty.name }}</td></tr>
+</table>
+<table class="table doc-table">
+  <thead><tr><th>#</th><th>Course code</th><th>Course title</th><th class="text-center">Units</th></tr></thead>
+  <tbody>
+  {% for r in registered %}
+    <tr><td>{{ loop.index }}</td><td class="fw-semibold">{{ r.course.code }}</td><td>{{ r.course.title }}</td><td class="text-center">{{ r.course.units }}</td></tr>
+  {% else %}
+    <tr><td colspan="4" class="text-center muted">No courses registered.</td></tr>
+  {% endfor %}
+  </tbody>
+  <tfoot><tr><td colspan="3" class="text-end fw-semibold">Total units</td><td class="text-center fw-bold">{{ total_units }}</td></tr></tfoot>
+</table>
+<div class="row mt-5 pt-4 text-center small">
+  <div class="col">________________________<br>Student's signature</div>
+  <div class="col">________________________<br>Level Adviser</div>
+  <div class="col">________________________<br>Head of Department</div>
+</div>
+{% endblock %}

@@ -1,0 +1,54 @@
+{#
+  form_page.html — One template for every simple "create / edit" form
+  (students, lecturers, courses, programmes, faculties, ...). The route passes
+  the form object, a title and a back link; fields are drawn automatically.
+#}
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+{{ ui.page_head(title, intro) }}
+<div class="row g-4">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-body">
+        <form method="post" novalidate>
+          {{ form.hidden_tag() }}
+          {{ ui.form_fields(form) }}
+          <div class="d-flex gap-2 mt-4">
+            <button class="btn btn-primary"><i class="bi bi-check2 me-1"></i>{{ form.submit.label.text if form.submit else "Save" }}</button>
+            <a href="{{ back_url }}" class="btn btn-light">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  {% if reset_user %}
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header">Account status {{ ui.status_badge(reset_user.status) }}</div>
+      <div class="card-body d-flex flex-wrap gap-2">
+        {% for st in ["active", "inactive", "suspended"] if st != reset_user.status %}
+          <form method="post" action="{{ url_for('admin.users_status', user_id=reset_user.id) }}">
+            {{ ui.csrf() }}<input type="hidden" name="status" value="{{ st }}">
+            <button class="btn btn-sm {{ 'btn-outline-primary' if st == 'active' else 'btn-outline-danger' }}"
+                    data-confirm="Set this account to {{ st }}?">{{ {'active':'Activate','inactive':'Deactivate','suspended':'Suspend'}[st] }}</button>
+          </form>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">Reset password</div>
+      <div class="card-body">
+        <form method="post" action="{{ url_for('admin.users_password', user_id=reset_user.id) }}">
+          {{ reset_form.hidden_tag() }}
+          {{ reset_form.new_password(class="form-control mb-2", placeholder="New password") }}
+          <button class="btn btn-sm btn-outline-primary">Reset password</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

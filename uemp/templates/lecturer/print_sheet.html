@@ -1,0 +1,26 @@
+{% extends "base_print.html" %}
+{% set course = allocation.course %}
+{% block title %}{{ course.code }} score sheet{% endblock %}
+{% block doc_subtitle %}Class List & Score Sheet · {{ allocation.semester.name }}{% endblock %}
+{% block document %}
+<table class="kv mb-3">
+  <tr><td>Course</td><td class="fw-semibold">{{ course.code }} — {{ course.title }}</td><td class="ps-4">Units</td><td>{{ course.units }}</td></tr>
+  <tr><td>Lecturer</td><td>{{ allocation.lecturer.display_name }}</td><td class="ps-4">Status</td><td>{{ sheet.status_enum.label }}</td></tr>
+  <tr><td>Department</td><td>{{ course.department.name }}</td><td class="ps-4">Students</td><td>{{ summary.students }}</td></tr>
+</table>
+<table class="table table-sm doc-table">
+  <thead><tr><th>#</th><th>Matric No.</th><th>Name</th><th class="text-center">CA</th><th class="text-center">Exam</th><th class="text-center">Total</th><th class="text-center">Grade</th></tr></thead>
+  <tbody>
+  {% for e in entries %}
+    <tr><td>{{ loop.index }}</td><td>{{ e.registration.student.student_profile.matric_number }}</td><td>{{ e.registration.student.full_name }}</td>
+      <td class="text-center">{{ e.ca_score | score }}</td><td class="text-center">{{ e.exam_score | score }}</td>
+      <td class="text-center">{{ e.total | score }}</td><td class="text-center fw-semibold">{{ e.grade or '' }}</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+<div class="small">Average: <strong>{{ summary.average if summary.average is not none else '—' }}</strong> · Pass rate: <strong>{{ summary.pass_rate if summary.pass_rate is not none else '—' }}%</strong></div>
+<div class="row mt-5 pt-4 text-center small">
+  <div class="col">________________________<br>Lecturer</div>
+  <div class="col">________________________<br>Head of Department</div>
+</div>
+{% endblock %}

@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Semester results{% endblock %}
+{% block content %}
+{% call ui.page_head("Semester results", "Only results approved by your department are shown.", "Academics") %}
+  {% if semesters %}
+  <form method="get">
+    <select name="semester_id" class="form-select" onchange="this.form.submit()" aria-label="Semester">
+      {% for s in semesters %}
+        <option value="{{ s.id }}" {{ 'selected' if chosen and s.id == chosen.id }}>{{ s.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+  <a class="btn btn-light" href="{{ url_for('student.statement') }}"><i class="bi bi-printer me-1"></i>Statement</a>
+  {% endif %}
+{% endcall %}
+
+{% if record %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">{{ ui.stat("Semester GPA", record.gpa | num, "graph-up-arrow", "green") }}</div>
+  <div class="col-6 col-md-3">{{ ui.stat("CGPA to date", history.cgpa | num, "award", "gold") }}</div>
+  <div class="col-6 col-md-3">{{ ui.stat("Units taken", record.total_units, "stack", "blue") }}</div>
+  <div class="col-6 col-md-3">{{ ui.stat("Units passed", record.units_passed, "check2-circle", "violet") }}</div>
+</div>
+
+<div class="card table-card mb-4">
+  <div class="card-header">{{ record.semester.name }}</div>
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead><tr><th>Code</th><th>Title</th><th class="text-center">Units</th><th class="text-center">CA</th><th class="text-center">Exam</th><th class="text-center">Total</th><th class="text-center">Grade</th><th class="text-center">Point</th></tr></thead>
+      <tbody>
+      {% for e in record.entries %}
+        <tr>
+          <td class="fw-semibold">{{ e.registration.course.code }}</td><td>{{ e.registration.course.title }}</td>
+          <td class="text-center">{{ e.registration.course.units }}</td>
+          <td class="text-center">{{ e.ca_score | score }}</td><td class="text-center">{{ e.exam_score | score }}</td>
+          <td class="text-center fw-semibold">{{ e.total | score }}</td>
+          <td class="text-center">{{ ui.grade(e.grade) }}</td><td class="text-center">{{ e.grade_point | num(1) }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+  <div class="card mb-4">{{ ui.empty("No approved results for " ~ (chosen.name if chosen else "this semester") ~ " yet",
+                                    "Results appear here after your department approves them.", "hourglass-split") }}</div>
+{% endif %}
+
+{% if pending %}
+<div class="card">
+  <div class="card-header"><span><i class="bi bi-hourglass-split me-2 text-warning"></i>Awaiting approval · {{ chosen.name }}</span></div>
+  <div class="card-body small muted">
+    {% for r in pending %}<span class="badge text-bg-light border me-1 mb-1">{{ r.course.code }}</span>{% endfor %}
+    <div class="mt-2">These courses are registered but their results have not been approved yet.</div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

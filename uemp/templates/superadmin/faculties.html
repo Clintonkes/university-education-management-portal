@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Faculties & departments{% endblock %}
+{% block content %}
+{% call ui.page_head("Faculties & departments", "The university's academic structure.", "University") %}
+  <a class="btn btn-light" href="{{ url_for('superadmin.faculties_department_new') }}"><i class="bi bi-plus-lg me-1"></i>Department</a>
+  <a class="btn btn-primary" href="{{ url_for('superadmin.faculties_new') }}"><i class="bi bi-plus-lg me-1"></i>Faculty</a>
+{% endcall %}
+
+<div class="row g-4">
+{% for f in faculties %}
+  <div class="col-lg-6">
+    <div class="card table-card h-100">
+      <div class="card-header">
+        <span><i class="bi bi-building me-2 text-success"></i>{{ f.name }} <span class="badge text-bg-light border ms-1">{{ f.code }}</span></span>
+        <span class="d-flex gap-1">
+          <a class="btn btn-sm btn-light" href="{{ url_for('superadmin.faculties_department_new', faculty_id=f.id) }}" title="Add department"><i class="bi bi-plus-lg"></i></a>
+          <a class="btn btn-sm btn-light" href="{{ url_for('superadmin.faculties_edit', faculty_id=f.id) }}" title="Edit faculty"><i class="bi bi-pencil"></i></a>
+        </span>
+      </div>
+      {% if f.departments %}
+      <div class="table-responsive">
+      <table class="table table-hover">
+        <thead><tr><th>Code</th><th>Department</th><th class="text-center">Programmes</th><th></th></tr></thead>
+        <tbody>
+        {% for d in f.departments %}
+          <tr><td class="mono">{{ d.code }}</td><td class="fw-semibold">{{ d.name }}</td><td class="text-center">{{ d.programs | length }}</td>
+            <td class="text-end"><a class="btn btn-sm btn-link" href="{{ url_for('superadmin.faculties_department_edit', department_id=d.id) }}">Edit</a></td></tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+        {{ ui.empty("No departments yet", "", "diagram-2") }}
+      {% endif %}
+    </div>
+  </div>
+{% else %}
+  <div class="col-12"><div class="card">{{ ui.empty("No faculties yet", "Create the first faculty to get started.", "building") }}</div></div>
+{% endfor %}
+</div>
+{% endblock %}

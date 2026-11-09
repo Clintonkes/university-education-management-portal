@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Academic history{% endblock %}
+{% block content %}
+{% call ui.page_head("Academic history", "Every approved semester, with GPA and cumulative GPA (CGPA).", "Academics") %}
+  <a class="btn btn-primary" href="{{ url_for('student.statement') }}"><i class="bi bi-printer me-1"></i>Print statement of result</a>
+{% endcall %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">{{ ui.stat("CGPA", history.cgpa | num, "award", "gold") }}</div>
+  <div class="col-6 col-md-3">{{ ui.stat("Classification", history.classification, "mortarboard", "green") }}</div>
+  <div class="col-6 col-md-3">{{ ui.stat("Total units", history.total_units, "stack", "blue") }}</div>
+  <div class="col-6 col-md-3">{{ ui.stat("Semesters", history.semesters | length, "calendar3", "violet") }}</div>
+</div>
+
+{% if history.semesters %}
+<div class="card table-card mb-4">
+  <div class="card-header">Semester summary</div>
+  <div class="table-responsive">
+    <table class="table">
+      <thead><tr><th>Semester</th><th class="text-center">Courses</th><th class="text-center">Units</th><th class="text-center">Units passed</th><th class="text-center">Quality points</th><th class="text-center">GPA</th></tr></thead>
+      <tbody>
+      {% for rec in history.semesters %}
+        <tr>
+          <td><a href="{{ url_for('student.results', semester_id=rec.semester.id) }}" class="fw-semibold text-decoration-none">{{ rec.semester.name }}</a></td>
+          <td class="text-center">{{ rec.entries | length }}</td><td class="text-center">{{ rec.total_units }}</td>
+          <td class="text-center">{{ rec.units_passed }}</td><td class="text-center">{{ rec.quality_points | num(1) }}</td>
+          <td class="text-center fw-bold">{{ rec.gpa | num }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+      <tfoot><tr><td class="fw-semibold">Cumulative</td><td></td><td class="text-center fw-semibold">{{ history.total_units }}</td><td></td><td></td><td class="text-center fw-bold">{{ history.cgpa | num }}</td></tr></tfoot>
+    </table>
+  </div>
+</div>
+{% else %}
+  <div class="card">{{ ui.empty("No approved results yet", "Your academic history will build up as results are approved.", "mortarboard") }}</div>
+{% endif %}
+
+<div class="card"><div class="card-body small muted">
+  <strong class="text-dark">How GPA is calculated:</strong> GPA = Σ(course units × grade point) ÷ Σ(course units).
+  Grade points: {% for minimum, g, p in config.GRADING_SCALE %}<span class="me-2">{{ g }} ({{ minimum }}+) = {{ p | int }}</span>{% endfor %}
+</div></div>
+{% endblock %}

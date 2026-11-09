@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}My profile{% endblock %}
+{% block content %}
+{{ ui.page_head("My profile", "Official academic details are managed by your department. You can update your contact details.", "Student") }}
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-body text-center pt-4">
+        <span class="avatar mx-auto mb-2" style="width:72px;height:72px;font-size:1.5rem">{{ current_user.initials }}</span>
+        <h2 class="h5 fw-bold mb-0">{{ current_user.full_name }}</h2>
+        <div class="muted small">{{ current_user.email }}</div>
+      </div>
+      <div class="card-body border-top">
+        <div class="table-responsive">
+        <table class="table table-borderless table-sm m-0">
+          <tr><td class="muted">Matric number</td><td class="fw-semibold mono">{{ profile.matric_number }}</td></tr>
+          <tr><td class="muted">Faculty</td><td>{{ profile.program.department.faculty.name }}</td></tr>
+          <tr><td class="muted">Department</td><td>{{ profile.program.department.name }}</td></tr>
+          <tr><td class="muted">Programme</td><td>{{ profile.program.degree }} {{ profile.program.name }}</td></tr>
+          <tr><td class="muted">Level</td><td>{{ profile.level }} Level</td></tr>
+          <tr><td class="muted">Year of entry</td><td>{{ profile.entry_year }}</td></tr>
+        </table>
+        </div>
+        <div class="small muted mt-2"><i class="bi bi-lock me-1"></i>To correct these details, contact your department admin.</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">Personal & contact details</div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {{ form.hidden_tag() }}
+          {{ ui.form_fields(form) }}
+          <button class="btn btn-primary mt-4">Save changes</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

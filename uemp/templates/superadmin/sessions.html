@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Sessions & semesters{% endblock %}
+{% block content %}
+{{ ui.page_head("Sessions & semesters", "Create academic sessions, choose the current semester and control course registration.", "University") }}
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header">New session</div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {{ form.hidden_tag() }}
+          <div class="row g-3">{{ ui.field(form.name) }}{{ ui.field(form.start_date, "col-6") }}{{ ui.field(form.end_date, "col-6") }}</div>
+          <button class="btn btn-primary w-100 mt-3"><i class="bi bi-plus-lg me-1"></i>Create session</button>
+        </form>
+        <div class="small muted mt-3">First and Second semesters are created automatically.</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-8">
+    {% for s in sessions %}
+      <div class="card table-card mb-3">
+        <div class="card-header">
+          <span><i class="bi bi-calendar3 me-2"></i>{{ s.name }} {% if s.is_current %}<span class="badge badge-soft st-approved ms-1">current session</span>{% endif %}</span>
+          <span class="small muted fw-normal">{{ s.start_date | d }} – {{ s.end_date | d }}</span>
+        </div>
+        <div class="table-responsive">
+        <table class="table">
+          <tbody>
+          {% for sem in s.semesters %}
+            <tr>
+              <td class="fw-semibold">{{ sem.term_label }}</td>
+              <td>{% if sem.is_current %}<span class="badge badge-soft st-approved">Current</span>{% endif %}
+                  <span class="badge badge-soft {{ 'st-approved' if sem.registration_open else 'st-draft' }}">Registration {{ 'open' if sem.registration_open else 'closed' }}</span></td>
+              <td class="text-end">
+                <form method="post" action="{{ url_for('superadmin.sessions_semester', semester_id=sem.id) }}" class="d-inline-flex flex-wrap justify-content-end gap-1">
+                  {{ ui.csrf() }}
+                  {% if not sem.is_current %}
+                    <button name="action" value="make_current" class="btn btn-sm btn-outline-primary" data-confirm="Make {{ sem.name }} the current semester for the whole university?">Make current</button>
+                  {% endif %}
+                  {% if sem.registration_open %}
+                    <button name="action" value="close" class="btn btn-sm btn-outline-danger">Close registration</button>
+                  {% elif sem.is_current %}
+                    <button name="action" value="open" class="btn btn-sm btn-primary">Open registration</button>
+                  {% endif %}
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+    {% else %}
+      <div class="card">{{ ui.empty("No sessions yet", "Create the first academic session.", "calendar-plus") }}</div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

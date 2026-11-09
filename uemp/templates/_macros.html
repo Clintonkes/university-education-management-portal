@@ -1,0 +1,124 @@
+{#
+  _macros.html — Reusable pieces of HTML ("components").
+  Import with:  {% import "_macros.html" as ui %}  then call  {{ ui.stat(...) }}.
+#}
+
+{# Page title row with optional buttons on the right. #}
+{% macro page_head(title, subtitle=None, eyebrow=None) %}
+<div class="page-head">
+  <div>
+    {% if eyebrow %}<div class="eyebrow mb-1">{{ eyebrow }}</div>{% endif %}
+    <h1>{{ title }}</h1>
+    {% if subtitle %}<p>{{ subtitle }}</p>{% endif %}
+  </div>
+  {% if caller %}<div class="d-flex flex-wrap gap-2">{{ caller() }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{# Small statistic card with an icon. tone = green|gold|blue|rose|slate|violet #}
+{% macro stat(label, value, icon, tone="green", hint=None) %}
+<div class="card"><div class="stat">
+  <div class="stat-icon tone-{{ tone }}"><i class="bi bi-{{ icon }}"></i></div>
+  <div><div class="stat-value">{{ value }}</div><div class="stat-label">{{ label }}</div>
+    {% if hint %}<div class="small muted mt-1">{{ hint }}</div>{% endif %}</div>
+</div></div>
+{% endmacro %}
+
+{# Coloured pill for a result-sheet or account status. #}
+{% macro status_badge(status) %}
+  {% set labels = {'draft':'Draft','submitted':'Awaiting review','approved':'Approved','returned':'Returned',
+                   'active':'Active','inactive':'Inactive','suspended':'Suspended'} %}
+  <span class="badge badge-soft st-{{ status }}">{{ labels.get(status, status|title) }}</span>
+{% endmacro %}
+
+{% macro grade(letter) %}{% if letter %}<span class="grade grade-{{ letter }}">{{ letter }}</span>{% else %}<span class="muted">—</span>{% endif %}{% endmacro %}
+
+{# Friendly "nothing here yet" message for empty tables. #}
+{% macro empty(title, message="", icon="inbox") %}
+<div class="empty"><i class="bi bi-{{ icon }}"></i><div class="fw-semibold text-dark">{{ title }}</div>
+  {% if message %}<div class="small mt-1">{{ message }}</div>{% endif %}</div>
+{% endmacro %}
+
+{# One form field with label, help text and error messages. #}
+{% macro field(f, col="col-12") %}
+<div class="{{ col }}">
+  {% if f.type == "BooleanField" %}
+    <div class="form-check mt-2">
+      {{ f(class="form-check-input") }} {{ f.label(class="form-check-label") }}
+    </div>
+  {% else %}
+    {{ f.label(class="form-label fw-medium") }}
+    {% set css = "form-select" if f.type in ["SelectField", "SelectMultipleField"] else "form-control" %}
+    {% if f.type == "SelectMultipleField" %}
+      {{ f(class=css ~ (" is-invalid" if f.errors else ""), size=6) }}
+    {% elif f.type == "TextAreaField" %}
+      {{ f(class=css ~ (" is-invalid" if f.errors else ""), rows=3) }}
+    {% else %}
+      {{ f(class=css ~ (" is-invalid" if f.errors else "")) }}
+    {% endif %}
+  {% endif %}
+  {% if f.description %}<div class="form-text">{{ f.description }}</div>{% endif %}
+  {% for error in f.errors %}<div class="invalid-feedback d-block">{{ error }}</div>{% endfor %}
+</div>
+{% endmacro %}
+
+{# Render every field of a WTForm automatically (except hidden token + submit). #}
+{% macro form_fields(form) %}
+<div class="row g-3">
+  {% for f in form if f.type not in ["CSRFTokenField", "SubmitField", "HiddenField"] %}
+    {{ field(f, "col-12" if f.type in ["TextAreaField", "SelectMultipleField", "BooleanField"] else "col-md-6") }}
+  {% endfor %}
+</div>
+{% endmacro %}
+
+{# Previous / next page links for paginated tables. Keeps current filters. #}
+{% macro pager(page, endpoint) %}
+{% if page and page.pages > 1 %}
+<nav class="d-flex justify-content-between align-items-center px-3 py-2 border-top small">
+  <span class="muted">Page {{ page.page }} of {{ page.pages }} · {{ page.total }} records</span>
+  {% set args = request.args.to_dict() %}
+  <ul class="pagination pagination-sm m-0">
+    <li class="page-item {{ 'disabled' if not page.has_prev }}">
+      <a class="page-link" href="{{ url_for(endpoint, **dict(args, page=page.prev_num)) if page.has_prev else '#' }}">Previous</a></li>
+    <li class="page-item {{ 'disabled' if not page.has_next }}">
+      <a class="page-link" href="{{ url_for(endpoint, **dict(args, page=page.next_num)) if page.has_next else '#' }}">Next</a></li>
+  </ul>
+</nav>
+{% endif %}
+{% endmacro %}
+
+{# Drop-down to switch semester; keeps other filters. #}
+{% macro semester_select(semesters, selected) %}
+<select name="semester_id" class="form-select" onchange="this.form.submit()" aria-label="Semester">
+  {% for s in semesters %}
+    <option value="{{ s.id }}" {{ 'selected' if selected and s.id == selected.id }}>{{ s.name }}{{ ' (current)' if s.is_current }}</option>
+  {% endfor %}
+</select>
+{% endmacro %}
+
+{# Hidden CSRF token for hand-written forms. #}
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
+
+{# Horizontal bar chart from a list of (label, value) pairs. #}
+{% macro bars(pairs, suffix="") %}
+  {% set top = (pairs | map(attribute=1) | max) if pairs else 0 %}
+  {% for label, value in pairs %}
+    <div class="bar-row"><span class="text-truncate" title="{{ label }}">{{ label }}</span>
+      <div class="bar"><span style="width: {{ (100 * value / top) if top else 0 }}%"></span></div>
+      <span class="text-end fw-semibold">{{ value }}{{ suffix }}</span></div>
+  {% else %}
+    <div class="muted small">No data yet.</div>
+  {% endfor %}
+{% endmacro %}
+
+{# Super Admin only: pick one department to narrow an admin page. #}
+{% macro dept_filter(departments) %}
+{% if departments %}
+<select name="department_id" class="form-select" onchange="this.form.submit()" aria-label="Department">
+  <option value="">All departments</option>
+  {% for d in departments %}
+    <option value="{{ d.id }}" {{ 'selected' if request.args.get('department_id') == d.id|string }}>{{ d.name }}</option>
+  {% endfor %}
+</select>
+{% endif %}
+{% endmacro %}

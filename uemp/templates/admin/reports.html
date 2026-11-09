@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Reports{% endblock %}
+{% block content %}
+{% call ui.page_head("Reports", "Student lists, course registration and academic performance.", "Results") %}
+  <a class="btn btn-light" href="{{ url_for('admin.reports_csv', **dict(request.args.to_dict(), tab=tab)) }}"><i class="bi bi-download me-1"></i>Export CSV</a>
+  <button class="btn btn-light" onclick="window.print()"><i class="bi bi-printer me-1"></i>Print</button>
+{% endcall %}
+
+<ul class="nav nav-pills mb-3 no-print">
+  {% for key, label, icon in [('students','Student list','people'),('registrations','Course registrations','card-checklist'),('performance','Performance summary','graph-up')] %}
+    <li class="nav-item"><a class="nav-link {{ 'active' if tab == key }}" href="{{ url_for('admin.reports', tab=key, semester_id=semester.id if semester else None, department_id=request.args.get('department_id')) }}"><i class="bi bi-{{ icon }} me-1"></i>{{ label }}</a></li>
+  {% endfor %}
+</ul>
+
+<form method="get" class="filter-bar mb-3 no-print">
+  <input type="hidden" name="tab" value="{{ tab }}">
+  {% if tab != 'students' %}{{ ui.semester_select(semesters, semester) }}{% endif %}
+  {% if tab == 'students' %}
+    <select name="level" class="form-select" onchange="this.form.submit()"><option value="">All levels</option>
+      {% for lvl in config.ACADEMIC_LEVELS %}<option value="{{ lvl }}" {{ 'selected' if request.args.get('level') == lvl|string }}>{{ lvl }} Level</option>{% endfor %}</select>
+  {% endif %}
+  {{ ui.dept_filter(filter_departments) }}
+</form>
+
+{% if tab == 'students' %}
+  <div class="row g-4">
+    <div class="col-lg-4"><div class="card"><div class="card-header">Students by level</div><div class="card-body">
+      {{ ui.bars(levels | map('list') | list) }}</div></div></div>
+    <div class="col-lg-8"><div class="card table-card">
+      <div class="card-header">Student list <span class="muted fw-normal">{{ students | length }} students</span></div>
+      <div class="table-responsive"><table class="table table-sm table-hover">
+        <thead><tr><th>Matric No.</th><th>Name</th><th>Programme</th><th class="text-center">Level</th><th>Status</th></tr></thead>
+        <tbody>{% for u in students %}
+          <tr><td class="mono">{{ u.student_profile.matric_number }}</td><td>{{ u.full_name }}</td><td class="small">{{ u.student_profile.program.name }}</td>
+              <td class="text-center">{{ u.student_profile.level }}</td><td>{{ ui.status_badge(u.status) }}</td></tr>
+        {% else %}<tr><td colspan="5">{{ ui.empty("No students") }}</td></tr>{% endfor %}</tbody>
+      </table></div></div></div>
+  </div>
+
+{% elif not semester %}
+  <div class="card">{{ ui.empty("No semester selected", "", "calendar-x") }}</div>
+
+{% elif tab == 'registrations' %}
+  <div class="card table-card">
+    <div class="card-header">Course registration report · {{ semester.name }}</div>
+    <div class="table-responsive"><table class="table table-hover">
+      <thead><tr><th>Course</th><th class="text-center">Units</th><th class="text-center">Level</th><th>Lecturer</th><th class="text-center">Students</th><th style="width:25%"></th></tr></thead>
+      {% set top = (rows | map(attribute='students') | max) if rows else 0 %}
+      <tbody>{% for r in rows %}
+        <tr><td><span class="fw-semibold">{{ r.course.code }}</span> <span class="small muted">{{ r.course.title }}</span></td>
+          <td class="text-center">{{ r.course.units }}</td><td class="text-center">{{ r.course.level }}</td>
+          <td class="small">{{ r.lecturer.display_name if r.lecturer else '<span class="text-danger">Unallocated</span>' | safe }}</td>
+          <td class="text-center fw-semibold">{{ r.students }}</td>
+          <td><div class="bar"><span style="width: {{ 100 * r.students / top if top else 0 }}%"></span></div></td></tr>
+      {% else %}<tr><td colspan="6">{{ ui.empty("No courses this semester") }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </div>
+
+{% elif tab == 'performance' %}
+  <div class="row g-4">
+    <div class="col-lg-4"><div class="card"><div class="card-header">Grade distribution (approved)</div><div class="card-body">
+      {{ ui.bars(distribution | dictsort | map('list') | list) }}</div></div></div>
+    <div class="col-lg-8"><div class="card table-card">
+      <div class="card-header">Academic performance · {{ semester.name }}</div>
+      <div class="table-responsive"><table class="table table-hover">
+        <thead><tr><th>Course</th><th class="text-center">Students</th><th class="text-center">Average</th><th class="text-center">Pass rate</th><th>Grades</th></tr></thead>
+        <tbody>{% for r in rows %}
+          <tr><td><span class="fw-semibold">{{ r.sheet.course.code }}</span><div class="small muted">{{ r.sheet.course.title }}</div></td>
+            <td class="text-center">{{ r.students }}</td><td class="text-center fw-semibold">{{ r.average }}</td>
+            <td class="text-center">{{ r.pass_rate }}%</td>
+            <td class="small">{% for g, n in r.grades | dictsort %}<span class="me-2">{{ ui.grade(g) }} {{ n }}</span>{% endfor %}</td></tr>
+        {% else %}<tr><td colspan="5">{{ ui.empty("No approved results yet", "Performance appears once results are approved.") }}</td></tr>{% endfor %}</tbody>
+      </table></div></div></div>
+  </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,95 @@
+{#
+  registration.html — Workflow 1. Left: courses available to this student.
+  Right: what they have already registered, with a running unit total.
+#}
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Course registration{% endblock %}
+{% set max_units = config.MAX_UNITS_PER_SEMESTER %}
+{% block content %}
+{% call ui.page_head("Course registration", semester.name if semester else "No active semester", "Academics") %}
+  {% if registered %}<a class="btn btn-light" href="{{ url_for('student.registration_slip', semester_id=semester.id) }}"><i class="bi bi-printer me-1"></i>Print slip</a>{% endif %}
+{% endcall %}
+
+{% if not semester %}
+  <div class="card">{{ ui.empty("No active semester", "The university has not opened a semester yet.", "calendar-x") }}</div>
+{% elif error %}
+  <div class="alert alert-warning">{{ error }}</div>
+{% else %}
+  {% if not semester.registration_open %}
+    <div class="alert alert-warning d-flex gap-2"><i class="bi bi-lock"></i><div>Registration is <strong>closed</strong> for {{ semester.name }}. You can view and print your registered courses.</div></div>
+  {% endif %}
+
+  <div class="row g-4">
+    <div class="col-lg-7">
+      <div class="card">
+        <div class="card-header">
+          <span>Available courses <span class="muted fw-normal">· {{ current_user.student_profile.level }} Level, {{ semester.term_label }}</span></span>
+        </div>
+        <div class="card-body">
+          {% if available %}
+          <form method="post" id="register-form">
+            {{ ui.csrf() }}
+            <div class="d-grid gap-2" data-course-picker data-registered-units="{{ total_units }}" data-max-units="{{ max_units }}">
+              {% for c in available %}
+                {% set taken = c.id in registered_ids %}
+                <label class="course-option {{ 'disabled checked' if taken }} {{ 'disabled' if not semester.registration_open }}">
+                  <input type="checkbox" class="form-check-input m-0" name="course_ids" value="{{ c.id }}" data-units="{{ c.units }}"
+                         {{ 'checked disabled' if taken }} {{ 'disabled' if not semester.registration_open }}>
+                  <div class="flex-grow-1">
+                    <div class="fw-semibold">{{ c.code }} <span class="fw-normal">· {{ c.title }}</span></div>
+                    <div class="small muted">{{ c.department.name }}{% if taken %} · <span class="text-success fw-semibold">Registered</span>{% endif %}</div>
+                  </div>
+                  <span class="badge text-bg-light border">{{ c.units }} unit{{ 's' if c.units != 1 }}</span>
+                </label>
+              {% endfor %}
+            </div>
+            {% if semester.registration_open %}
+            <div class="mt-4">
+              <div class="d-flex justify-content-between small mb-1"><span class="muted">Total units after registration</span>
+                <span><strong data-unit-total>{{ total_units }}</strong> / {{ max_units }}</span></div>
+              <div class="unit-meter mb-3"><span data-unit-meter></span></div>
+              <button class="btn btn-primary" data-register-submit disabled><i class="bi bi-check2-circle me-1"></i>Register selected courses</button>
+            </div>
+            {% endif %}
+          </form>
+          {% else %}
+            {{ ui.empty("No courses available", "No courses are offered to your programme and level this semester yet.", "book") }}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-5">
+      <div class="card table-card">
+        <div class="card-header"><span>Registered this semester</span><span class="badge badge-soft st-approved">{{ total_units }} units</span></div>
+        {% if registered %}
+        <div class="table-responsive">
+        <table class="table">
+          <tbody>
+          {% for r in registered %}
+            <tr>
+              <td><div class="fw-semibold">{{ r.course.code }}</div><div class="small muted">{{ r.course.title }}</div></td>
+              <td class="text-center">{{ r.course.units }}u</td>
+              <td class="text-end">
+                {% if semester.registration_open %}
+                <form method="post" action="{{ url_for('student.registration_drop', registration_id=r.id) }}">
+                  {{ ui.csrf() }}
+                  <button class="btn btn-sm btn-link text-danger p-0" data-confirm="Drop {{ r.course.code }}?" title="Drop course"><i class="bi bi-x-circle"></i></button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% else %}
+          {{ ui.empty("Nothing registered yet", "Tick courses on the left, then press Register.", "journal") }}
+        {% endif %}
+      </div>
+      <div class="small muted mt-3"><i class="bi bi-info-circle me-1"></i>You can register up to {{ max_units }} units per semester. The same course cannot be registered twice.</div>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,76 @@
+{# login.html — Sign-in page with one-click demo accounts for evaluators. #}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · UEMP</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/app.css') }}" rel="stylesheet">
+</head>
+<body>
+<div class="auth-wrap">
+  <section class="auth-art">
+    <div class="d-flex align-items-center gap-2 position-relative">
+      <span class="brand-mark"><i class="bi bi-mortarboard-fill"></i></span>
+      <strong class="fs-5">UEMP</strong>
+    </div>
+    <div class="position-relative" style="max-width: 460px">
+      <h1 class="display-6 fw-bold mb-3">University Education Management Portal</h1>
+      <p class="fs-6" style="color: rgba(255,255,255,.8)">Course registration, result processing and academic records — one secure portal for students, lecturers and administrators.</p>
+      <div class="row g-3 mt-3">
+        <div class="col-6"><div class="hero-metric"><div class="v"><i class="bi bi-shield-check"></i></div><div class="l">Role-based access control</div></div></div>
+        <div class="col-6"><div class="hero-metric"><div class="v"><i class="bi bi-diagram-3"></i></div><div class="l">Result approval workflow</div></div></div>
+      </div>
+    </div>
+    <div class="small position-relative" style="color: rgba(255,255,255,.6)">Lead Web Praxis Media Limited · Practical Software Development Test</div>
+  </section>
+
+  <section class="auth-form">
+    <div class="auth-card">
+      <h2 class="fw-bold mb-1">Welcome back</h2>
+      <p class="muted mb-4">Sign in with your university email.</p>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} py-2">{{ message }}</div>
+        {% endfor %}
+      {% endwith %}
+
+      <form method="post" novalidate>
+        {{ form.hidden_tag() }}
+        <div class="mb-3">
+          {{ form.email.label(class="form-label fw-medium") }}
+          {{ form.email(class="form-control form-control-lg" ~ (" is-invalid" if form.email.errors else ""), placeholder="name@uemp.edu.ng", autofocus=true, autocomplete="username") }}
+          {% for e in form.email.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+        </div>
+        <div class="mb-3">
+          {{ form.password.label(class="form-label fw-medium") }}
+          {{ form.password(class="form-control form-control-lg" ~ (" is-invalid" if form.password.errors else ""), autocomplete="current-password") }}
+          {% for e in form.password.errors %}<div class="invalid-feedback">{{ e }}</div>{% endfor %}
+        </div>
+        <div class="form-check mb-4">{{ form.remember(class="form-check-input") }} {{ form.remember.label(class="form-check-label") }}</div>
+        <button class="btn btn-primary btn-lg w-100">Sign in</button>
+      </form>
+
+      <div class="mt-4">
+        <div class="small fw-semibold muted mb-2">Demo accounts — click to fill</div>
+        <div class="d-grid gap-2">
+          {% for label, email, pw in [("Super Admin", "admin@uemp.edu.ng", "Admin@1234"),
+                                      ("Department Admin (CSC)", "csc.admin@uemp.edu.ng", "Admin@1234"),
+                                      ("Lecturer", "lecturer@uemp.edu.ng", "Lecturer@1234"),
+                                      ("Student", "student@uemp.edu.ng", "Student@1234")] %}
+            <div class="demo-chip d-flex justify-content-between" data-demo-email="{{ email }}" data-demo-password="{{ pw }}">
+              <span class="fw-medium">{{ label }}</span><span class="mono muted">{{ email }}</span>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

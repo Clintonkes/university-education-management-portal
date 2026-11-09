@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Audit trail{% endblock %}
+{% block content %}
+{{ ui.page_head("Audit trail", "Who did what, when and from where. Entries can never be edited.", "University") }}
+<div class="card table-card">
+  <div class="card-header">
+    <form class="filter-bar w-100" method="get">
+      <select name="action" class="form-select" onchange="this.form.submit()">
+        <option value="">All actions</option>
+        {% for key, label in [('result','Results'),('registration','Registrations'),('user','Accounts'),('auth','Sign-ins'),('course','Courses'),('allocation','Allocations'),('semester','Semesters'),('session','Sessions')] %}
+          <option value="{{ key }}" {{ 'selected' if request.args.get('action') == key }}>{{ label }}</option>
+        {% endfor %}
+      </select>
+      <input class="form-control" name="q" value="{{ request.args.get('q', '') }}" placeholder="Search descriptions (e.g. CSC 201)">
+      <button class="btn btn-outline-primary"><i class="bi bi-search"></i> Search</button>
+    </form>
+  </div>
+  {% if page.items %}
+  <div class="table-responsive">
+    <table class="table table-sm table-hover">
+      <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Details</th><th>IP</th></tr></thead>
+      <tbody>
+      {% for a in page.items %}
+        <tr>
+          <td class="small text-nowrap">{{ a.created_at | dt }}</td>
+          <td class="small">{{ a.actor.display_name if a.actor else 'System' }}<div class="muted">{{ a.actor.role_label if a.actor }}</div></td>
+          <td><span class="badge text-bg-light border mono">{{ a.action }}</span></td>
+          <td class="small">{{ a.description }}</td>
+          <td class="small muted mono">{{ a.ip_address or '—' }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ ui.pager(page, 'superadmin.audit') }}
+  {% else %}
+    {{ ui.empty("No entries match", "", "clock-history") }}
+  {% endif %}
+</div>
+{% endblock %}

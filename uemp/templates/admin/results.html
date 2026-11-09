@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Result approval{% endblock %}
+{% block content %}
+{{ ui.page_head("Result approval", "Review submitted results, then approve or return them to the lecturer.", "Results") }}
+<div class="card table-card">
+  <div class="card-header">
+    <form class="filter-bar w-100" method="get">
+      {{ ui.semester_select(semesters, semester) }}
+      <div class="btn-group" role="group" aria-label="Status filter">
+        {% for key, label in [('submitted','Awaiting review'),('approved','Approved'),('returned','Returned'),('draft','Draft'),('all','All')] %}
+          <button name="status" value="{{ key }}" class="btn btn-sm {{ 'btn-primary' if status == key else 'btn-outline-primary' }}">{{ label }}</button>
+        {% endfor %}
+      </div>
+      {{ ui.dept_filter(filter_departments) }}
+    </form>
+  </div>
+  {% if sheets %}
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead><tr><th>Course</th><th>Lecturer</th><th class="text-center">Students</th><th>Submitted</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for s in sheets %}
+        <tr>
+          <td><div class="fw-semibold">{{ s.course.code }}</div><div class="small muted">{{ s.course.title }}</div></td>
+          <td class="small">{{ s.lecturer.display_name }}</td>
+          <td class="text-center">{{ s.entries | length }}</td>
+          <td class="small muted">{{ s.submitted_at | dt }}</td>
+          <td>{{ ui.status_badge(s.status) }}</td>
+          <td class="text-end"><a class="btn btn-sm {{ 'btn-primary' if s.status == 'submitted' else 'btn-light' }}" href="{{ url_for('admin.results_review', sheet_id=s.id) }}">{{ 'Review' if s.status == 'submitted' else 'Open' }}</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("Nothing here", "No result sheets match this filter.", "patch-check") }}
+  {% endif %}
+</div>
+{% endblock %}

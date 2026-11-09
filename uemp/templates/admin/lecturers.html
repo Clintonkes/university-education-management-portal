@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Lecturers{% endblock %}
+{% block content %}
+{% call ui.page_head("Lecturers", "Lecturer profiles and departmental assignment.", "Records") %}
+  <a class="btn btn-primary" href="{{ url_for('admin.lecturers_new') }}"><i class="bi bi-person-plus me-1"></i>Add lecturer</a>
+{% endcall %}
+<div class="card table-card">
+  <div class="card-header">
+    <form class="filter-bar w-100" method="get">
+      <input class="form-control" name="q" value="{{ request.args.get('q', '') }}" placeholder="Search name, email or staff ID">
+      {{ ui.dept_filter(filter_departments) }}
+      <button class="btn btn-outline-primary"><i class="bi bi-search"></i> Search</button>
+    </form>
+  </div>
+  {% if page.items %}
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead><tr><th>Staff ID</th><th>Name</th><th>Department</th><th>Rank</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for u in page.items %}
+        <tr>
+          <td class="mono">{{ u.lecturer_profile.staff_id }}</td>
+          <td><div class="fw-semibold">{{ u.display_name }}</div><div class="small muted">{{ u.email }}</div></td>
+          <td class="small">{{ u.department.name if u.department else '—' }}</td>
+          <td class="small">{{ u.lecturer_profile.rank or '—' }}</td>
+          <td>{{ ui.status_badge(u.status) }}</td>
+          <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin.lecturers_edit', user_id=u.id) }}">Manage</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ ui.pager(page, 'admin.lecturers') }}
+  {% else %}
+    {{ ui.empty("No lecturers found", "", "person-workspace") }}
+  {% endif %}
+</div>
+{% endblock %}

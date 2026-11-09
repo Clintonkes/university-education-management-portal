@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}User accounts{% endblock %}
+{% block content %}
+{% call ui.page_head("User accounts", "Every account in the portal. Activate, deactivate, suspend or change staff roles.", "University") %}
+  <a class="btn btn-light" href="{{ url_for('admin.students_new') }}"><i class="bi bi-person-plus me-1"></i>Student</a>
+  <a class="btn btn-light" href="{{ url_for('admin.lecturers_new') }}"><i class="bi bi-person-plus me-1"></i>Lecturer</a>
+  <a class="btn btn-primary" href="{{ url_for('superadmin.users_new') }}"><i class="bi bi-shield-plus me-1"></i>Administrator</a>
+{% endcall %}
+
+<div class="card table-card">
+  <div class="card-header">
+    <form class="filter-bar w-100" method="get">
+      <input class="form-control" name="q" value="{{ request.args.get('q', '') }}" placeholder="Search name or email">
+      <select name="role" class="form-select"><option value="">All roles</option>
+        {% for r in roles %}<option value="{{ r.value }}" {{ 'selected' if request.args.get('role') == r.value }}>{{ r.label }}</option>{% endfor %}</select>
+      <select name="status" class="form-select"><option value="">Any status</option>
+        {% for st in statuses %}<option value="{{ st }}" {{ 'selected' if request.args.get('status') == st }}>{{ st | title }}</option>{% endfor %}</select>
+      <select name="department_id" class="form-select"><option value="">All departments</option>
+        {% for d in departments %}<option value="{{ d.id }}" {{ 'selected' if request.args.get('department_id') == d.id|string }}>{{ d.name }}</option>{% endfor %}</select>
+      <button class="btn btn-outline-primary"><i class="bi bi-funnel"></i> Filter</button>
+    </form>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead><tr><th>Name</th><th>Role</th><th>Department</th><th>Status</th><th>Last login</th><th class="text-end">Actions</th></tr></thead>
+      <tbody>
+      {% for u in page.items %}
+        <tr>
+          <td><div class="fw-semibold">{{ u.display_name }}</div><div class="small muted">{{ u.email }}</div></td>
+          <td><span class="badge text-bg-light border">{{ u.role_label }}</span></td>
+          <td class="small">{{ u.department.name if u.department else '—' }}</td>
+          <td>{{ ui.status_badge(u.status) }}</td>
+          <td class="small muted">{{ u.last_login_at | dt }}</td>
+          <td class="text-end text-nowrap">
+            {% if u.id != current_user.id %}
+            <div class="dropdown d-inline-block">
+              <button class="btn btn-sm btn-light dropdown-toggle" data-bs-toggle="dropdown">Manage</button>
+              <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                {% if u.role == 'student' %}
+                  <li><a class="dropdown-item" href="{{ url_for('admin.students_view', user_id=u.id) }}"><i class="bi bi-person-lines-fill me-2"></i>Open record</a></li>
+                {% elif u.role == 'lecturer' %}
+                  <li><a class="dropdown-item" href="{{ url_for('admin.lecturers_edit', user_id=u.id) }}"><i class="bi bi-pencil me-2"></i>Edit profile</a></li>
+                {% endif %}
+                {% if u.role != 'student' %}
+                  <li><a class="dropdown-item" href="{{ url_for('superadmin.users_role', user_id=u.id) }}"><i class="bi bi-shield-lock me-2"></i>Change role</a></li>
+                {% endif %}
+                <li><hr class="dropdown-divider"></li>
+                {% for st in ["active", "inactive", "suspended"] if st != u.status %}
+                  <li><form method="post" action="{{ url_for('admin.users_status', user_id=u.id) }}">{{ ui.csrf() }}
+                    <input type="hidden" name="status" value="{{ st }}">
+                    <button class="dropdown-item {{ 'text-danger' if st != 'active' }}" data-confirm="Set {{ u.email }} to {{ st }}?">
+                      {{ {'active':'Activate','inactive':'Deactivate','suspended':'Suspend'}[st] }}</button></form></li>
+                {% endfor %}
+              </ul>
+            </div>
+            {% else %}<span class="small muted">You</span>{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ ui.pager(page, 'superadmin.users') }}
+</div>
+{% endblock %}

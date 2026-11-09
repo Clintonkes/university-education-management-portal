@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Courses{% endblock %}
+{% block content %}
+{% call ui.page_head("Courses", "Course codes, titles, units, levels and semester.", "Academics") %}
+  <a class="btn btn-primary" href="{{ url_for('admin.courses_new') }}"><i class="bi bi-plus-lg me-1"></i>New course</a>
+{% endcall %}
+<div class="card table-card">
+  <div class="card-header">
+    <form class="filter-bar w-100" method="get">
+      <input class="form-control" name="q" value="{{ request.args.get('q', '') }}" placeholder="Search code or title">
+      <select name="level" class="form-select"><option value="">All levels</option>
+        {% for lvl, label in levels %}<option value="{{ lvl }}" {{ 'selected' if request.args.get('level') == lvl|string }}>{{ label }}</option>{% endfor %}</select>
+      <select name="term" class="form-select"><option value="">Both semesters</option>
+        {% for t in terms %}<option value="{{ t.value }}" {{ 'selected' if request.args.get('term') == t.value }}>{{ t.label }}</option>{% endfor %}</select>
+      {{ ui.dept_filter(filter_departments) }}
+      <button class="btn btn-outline-primary"><i class="bi bi-funnel"></i> Filter</button>
+    </form>
+  </div>
+  {% if page.items %}
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead><tr><th>Code</th><th>Title</th><th class="text-center">Units</th><th class="text-center">Level</th><th>Semester</th><th>Offered to</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+      {% for c in page.items %}
+        <tr>
+          <td class="fw-semibold text-nowrap">{{ c.code }}</td>
+          <td>{{ c.title }}<div class="small muted">{{ c.department.name }}</div></td>
+          <td class="text-center">{{ c.units }}</td><td class="text-center">{{ c.level }}</td>
+          <td class="small">{{ c.term_label }}</td>
+          <td class="small">{% for p in c.programs %}<span class="badge text-bg-light border me-1">{{ p.code }}</span>{% endfor %}</td>
+          <td>{{ ui.status_badge('active' if c.is_active else 'inactive') }}</td>
+          <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin.courses_edit', course_id=c.id) }}">Edit</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {{ ui.pager(page, 'admin.courses') }}
+  {% else %}
+    {{ ui.empty("No courses found", "", "book") }}
+  {% endif %}
+</div>
+{% endblock %}

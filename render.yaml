@@ -1,0 +1,28 @@
+# Render Blueprint (https://render.com/docs/blueprint-spec)
+#
+# Creates ONE web service. The database lives on Neon (https://neon.tech),
+# so there is no "databases:" section here. When you create the Blueprint,
+# Render asks you to paste the Neon connection string for DATABASE_URL
+# (because of "sync: false" below). Full steps: docs/DEPLOYMENT.md
+services:
+  - type: web
+    name: uemp
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # --preload: load the app once before starting workers, so the demo data
+    # is seeded only once (not once per worker).
+    startCommand: gunicorn run:app --preload --workers 2 --timeout 60 --bind 0.0.0.0:$PORT
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: UEMP_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true          # Render creates a long random value
+      - key: DATABASE_URL
+        sync: false                  # paste your Neon connection string when asked
+      - key: AUTO_SEED
+        value: "1"                   # create tables + demo data on first start
+      - key: PYTHON_VERSION
+        value: "3.12.7"

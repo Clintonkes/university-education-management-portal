@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% set p = student.student_profile %}
+{% block title %}{{ student.full_name }}{% endblock %}
+{% block content %}
+{% call ui.page_head(student.full_name, p.matric_number ~ " · " ~ p.program.name ~ " · " ~ p.level ~ " Level", "Student record") %}
+  <a class="btn btn-light" href="{{ url_for('admin.students') }}"><i class="bi bi-arrow-left me-1"></i>All students</a>
+  <a class="btn btn-primary" href="{{ url_for('admin.students_edit', user_id=student.id) }}"><i class="bi bi-pencil me-1"></i>Edit</a>
+{% endcall %}
+
+<div class="row g-4">
+  <div class="col-lg-4">
+    <div class="card mb-4">
+      <div class="card-header">Profile {{ ui.status_badge(student.status) }}</div>
+      <div class="card-body">
+        <table class="table table-borderless table-sm m-0 small">
+          <tr><td class="muted">Email</td><td>{{ student.email }}</td></tr>
+          <tr><td class="muted">Phone</td><td>{{ student.phone or '—' }}</td></tr>
+          <tr><td class="muted">Department</td><td>{{ p.program.department.name }}</td></tr>
+          <tr><td class="muted">Faculty</td><td>{{ p.program.department.faculty.name }}</td></tr>
+          <tr><td class="muted">Entry year</td><td>{{ p.entry_year }}</td></tr>
+          <tr><td class="muted">Gender</td><td>{{ p.gender or '—' }}</td></tr>
+          <tr><td class="muted">Address</td><td>{{ p.address or '—' }}</td></tr>
+          <tr><td class="muted">Last login</td><td>{{ student.last_login_at | dt }}</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="card mb-4">
+      <div class="card-header">Account actions</div>
+      <div class="card-body">
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          {% for st in ["active", "inactive", "suspended"] if st != student.status %}
+            <form method="post" action="{{ url_for('admin.users_status', user_id=student.id) }}">
+              {{ ui.csrf() }}<input type="hidden" name="status" value="{{ st }}">
+              <button class="btn btn-sm {{ 'btn-outline-primary' if st == 'active' else 'btn-outline-danger' }}" data-confirm="Set this account to {{ st }}?">
+                {{ {'active':'Activate','inactive':'Deactivate','suspended':'Suspend'}[st] }}</button>
+            </form>
+          {% endfor %}
+        </div>
+        <form method="post" action="{{ url_for('admin.users_password', user_id=student.id) }}" class="d-flex gap-2">
+          {{ reset_form.hidden_tag() }}
+          {{ reset_form.new_password(class="form-control form-control-sm", placeholder="New password") }}
+          <button class="btn btn-sm btn-outline-primary text-nowrap">Reset</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="row g-3 mb-4">
+      <div class="col-4">{{ ui.stat("CGPA", history.cgpa | num, "award", "gold") }}</div>
+      <div class="col-4">{{ ui.stat("Units", history.total_units, "stack", "blue") }}</div>
+      <div class="col-4">{{ ui.stat("Class", history.classification, "mortarboard", "green") }}</div>
+    </div>
+    <div class="card table-card">
+      <div class="card-header">Course registrations & results</div>
+      {% if registrations %}
+      <div class="table-responsive">
+        <table class="table">
+          <thead><tr><th>Semester</th><th>Course</th><th class="text-center">Units</th><th class="text-center">Total</th><th class="text-center">Grade</th><th>Result status</th></tr></thead>
+          <tbody>
+          {% for r in registrations %}
+            <tr>
+              <td class="small">{{ r.semester.name }}</td>
+              <td><span class="fw-semibold">{{ r.course.code }}</span> <span class="small muted">{{ r.course.title }}</span></td>
+              <td class="text-center">{{ r.course.units }}</td>
+              <td class="text-center">{{ r.result.total | score if r.result else '' }}</td>
+              <td class="text-center">{{ ui.grade(r.result.grade if r.result else None) }}</td>
+              <td>{{ ui.status_badge(r.result.sheet.status) if r.result else '<span class="small muted">No sheet yet</span>' | safe }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        {{ ui.empty("No registrations yet", "", "journal") }}
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

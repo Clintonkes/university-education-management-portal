@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Lecturer dashboard{% endblock %}
+{% block content %}
+{{ ui.page_head("Welcome, " ~ current_user.display_name, (current_user.department.name if current_user.department else "") ~ (" · " ~ semester.name if semester else ""), "Lecturer portal") }}
+
+{% for r in returned %}
+  <div class="alert alert-danger d-flex gap-3 align-items-start">
+    <i class="bi bi-arrow-return-left fs-5"></i>
+    <div class="flex-grow-1"><strong>{{ r.allocation.course.code }} was returned for correction.</strong>
+      <div class="small">{{ r.sheet.review_comment }}</div></div>
+    <a class="btn btn-sm btn-danger" href="{{ url_for('lecturer.courses_detail', allocation_id=r.allocation.id) }}">Fix now</a>
+  </div>
+{% endfor %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">{{ ui.stat("Courses this semester", rows | length, "journal-bookmark", "green") }}</div>
+  <div class="col-6 col-md-3">{{ ui.stat("Students taught", total_students, "people", "blue") }}</div>
+  <div class="col-6 col-md-3">{{ ui.stat("Results submitted", submitted, "send-check", "gold") }}</div>
+  <div class="col-6 col-md-3">{{ ui.stat("Returned to me", returned | length, "arrow-return-left", "rose") }}</div>
+</div>
+
+<div class="card table-card">
+  <div class="card-header">My courses {% if semester %}<span class="muted fw-normal">· {{ semester.name }}</span>{% endif %}</div>
+  {% if rows %}
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead><tr><th>Course</th><th class="text-center">Units</th><th class="text-center">Level</th><th class="text-center">Students</th><th>Result status</th><th></th></tr></thead>
+      <tbody>
+      {% for r in rows %}
+        <tr>
+          <td><div class="fw-semibold">{{ r.allocation.course.code }}</div><div class="small muted">{{ r.allocation.course.title }}</div></td>
+          <td class="text-center">{{ r.allocation.course.units }}</td>
+          <td class="text-center">{{ r.allocation.course.level }}</td>
+          <td class="text-center">{{ r.students }}</td>
+          <td>{{ ui.status_badge(r.sheet.status if r.sheet else 'draft') }}</td>
+          <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('lecturer.courses_detail', allocation_id=r.allocation.id) }}">
+            {{ 'Enter scores' if not r.sheet or r.sheet.status in ['draft','returned'] else 'View' }}</a></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("No courses assigned this semester", "Your department admin allocates courses to lecturers.", "journal-x") }}
+  {% endif %}
+</div>
+{% endblock %}

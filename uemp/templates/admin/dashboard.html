@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% block title %}Department dashboard{% endblock %}
+{% block content %}
+{% call ui.page_head((current_user.department.name ~ " Department") if current_user.department and current_user.role == 'dept_admin' else "Department overview",
+                     semester.name if semester else "No current semester", "Department admin") %}
+  <form method="get">{{ ui.dept_filter(filter_departments) }}</form>
+  <a class="btn btn-primary" href="{{ url_for('admin.results') }}"><i class="bi bi-patch-check me-1"></i>Review results</a>
+{% endcall %}
+
+<div class="row g-3 mb-4">
+  <div class="col-6 col-xl-3">{{ ui.stat("Active students", counts.students, "people", "green") }}</div>
+  <div class="col-6 col-xl-3">{{ ui.stat("Lecturers", counts.lecturers, "person-workspace", "blue") }}</div>
+  <div class="col-6 col-xl-3">{{ ui.stat("Course registrations", counts.registrations, "card-checklist", "violet", "this semester") }}</div>
+  <div class="col-6 col-xl-3">{{ ui.stat("Awaiting your review", counts.pending_results, "hourglass-split", "gold") }}</div>
+</div>
+
+{% if counts.unallocated_courses %}
+<div class="alert alert-warning d-flex align-items-center gap-2">
+  <i class="bi bi-exclamation-triangle"></i>
+  <div class="flex-grow-1">{{ counts.unallocated_courses }} course(s) this semester have no lecturer yet.</div>
+  <a href="{{ url_for('admin.allocations') }}" class="btn btn-sm btn-warning">Allocate</a>
+</div>
+{% endif %}
+
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card table-card mb-4">
+      <div class="card-header"><span><i class="bi bi-hourglass-split me-2 text-warning"></i>Results awaiting review</span>
+        <a href="{{ url_for('admin.results') }}" class="small">View all</a></div>
+      {% if pending %}
+      <div class="table-responsive">
+      <table class="table table-hover">
+        <tbody>
+        {% for s in pending %}
+          <tr>
+            <td><div class="fw-semibold">{{ s.course.code }}</div><div class="small muted">{{ s.course.title }}</div></td>
+            <td class="small">{{ s.lecturer.display_name }}<div class="muted">{{ s.entries | length }} students</div></td>
+            <td class="small muted">{{ s.submitted_at | dt }}</td>
+            <td class="text-end"><a class="btn btn-sm btn-primary" href="{{ url_for('admin.results_review', sheet_id=s.id) }}">Review</a></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+        {{ ui.empty("All caught up", "No submitted results are waiting for review.", "check2-all") }}
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <div class="card-header">Recent activity</div>
+      <div class="card-body">
+        {% if activity %}
+        <ul class="timeline">
+          {% for a in activity %}
+            <li><div class="small">{{ a.description }}</div>
+                <div class="small muted">{{ a.actor.display_name if a.actor else 'System' }} · {{ a.created_at | dt }}</div></li>
+          {% endfor %}
+        </ul>
+        {% else %}<div class="muted small">No activity yet.</div>{% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="card mb-4">
+      <div class="card-header">Result sheets this semester</div>
+      <div class="card-body">
+        {% set labels = {'draft':'Draft','submitted':'Awaiting review','approved':'Approved','returned':'Returned'} %}
+        {% for key, label in labels.items() %}
+          <div class="d-flex justify-content-between align-items-center py-1">
+            <span>{{ ui.status_badge(key) }}</span><strong>{{ status_breakdown.get(key, 0) }}</strong>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="card mb-4">
+      <div class="card-header">Students by level</div>
+      <div class="card-body">
+        {% set top = (levels | map(attribute=1) | max) if levels else 0 %}
+        {% for level, n in levels %}
+          <div class="bar-row"><span>{{ level }} Level</span><div class="bar"><span style="width: {{ 100 * n / top if top else 0 }}%"></span></div><span class="text-end fw-semibold">{{ n }}</span></div>
+        {% else %}<div class="muted small">No students yet.</div>{% endfor %}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header">Shortcuts</div>
+      <div class="list-group list-group-flush">
+        <a class="list-group-item list-group-item-action" href="{{ url_for('admin.students_new') }}"><i class="bi bi-person-plus me-2"></i>Register a student</a>
+        <a class="list-group-item list-group-item-action" href="{{ url_for('admin.courses_new') }}"><i class="bi bi-journal-plus me-2"></i>Create a course</a>
+        <a class="list-group-item list-group-item-action" href="{{ url_for('admin.allocations') }}"><i class="bi bi-person-check me-2"></i>Allocate lecturers</a>
+        <a class="list-group-item list-group-item-action" href="{{ url_for('admin.reports') }}"><i class="bi bi-bar-chart-line me-2"></i>Departmental reports</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
