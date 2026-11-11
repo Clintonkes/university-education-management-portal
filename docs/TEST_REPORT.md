@@ -2,12 +2,15 @@
 
 How the portal was tested against the assessment brief, and what was found.
 
+> **Submitted workflow: Lecturer Result Submission.** The tests that prove it are listed below, in the rows for §2B Lecturer, Workflows 2 and 3, `test_results`, and browser tests 3, 4 and 11. The manual checklist with expected results is in [LECTURER_WORKFLOW.md](LECTURER_WORKFLOW.md). Run only these tests with:
+> `pytest -q tests/test_req_2b_lecturer.py tests/test_results.py tests/test_req_4_workflows.py`
+
 ## Summary
 
 | Run | Result |
 |---|---|
-| Automated suite on **SQLite** | **237 passed** |
-| Same suite on **PostgreSQL 18** (the same engine as Neon) | **237 passed** |
+| Automated suite on **SQLite** | **239 passed** |
+| Same suite on **PostgreSQL 18** (the same engine as Neon) | **239 passed** |
 | **Browser tests** (headless Chromium, real CSRF + JavaScript, htmx page swaps) | **15 passed** |
 | Upgrade of a database made by the previous version (13 columns missing) on PostgreSQL | Columns added on startup, all 93 registrations kept, every page loads |
 | Production rehearsal: gunicorn `--preload`, `UEMP_ENV=production`, empty PostgreSQL, `AUTO_SEED=1` | Started, seeded once, login and RBAC work, cookie `Secure; HttpOnly; SameSite=Lax` |
@@ -18,7 +21,7 @@ How the portal was tested against the assessment brief, and what was found.
 ```bash
 pip install -r requirements-dev.txt
 
-pytest -q                                   # 237 tests on an in-memory SQLite database (~40 s)
+pytest -q                                   # 239 tests on an in-memory SQLite database (~40 s)
 
 # Same tests on PostgreSQL (use an EMPTY throwaway database; tables are created and dropped)
 TEST_DATABASE_URL=postgresql://user:pass@localhost:5432/uemp_test pytest -q
@@ -46,7 +49,7 @@ Test files named `test_req_*` follow the brief's section numbers. Inside each fi
 | §6 Business rules 1–8, GPA weighting, configurable scale | `tests/test_req_6_business_rules.py` | 14 |
 | §8 "Unauthorized users cannot access restricted pages or backend endpoints" | `tests/test_req_8_endpoint_matrix.py` | 6 |
 | Unit and feature tests (grading boundaries, login lockout, RBAC, registration, results, super admin) | `test_grading`, `test_auth`, `test_rbac`, `test_registration`, `test_results`, `test_superadmin` | 86 |
-| Second-round features: lecturer tabs, correction requests (ask / allow / refuse, from any semester), unsuspend and unlock, deletes with safety checks, complete/reopen/edit/add/delete sessions and semesters, activity pages, registration filter and Super Admin edits, department report, academic report, plain-English audit trail, schema upgrade | `tests/test_new_features.py` | 27 |
+| Second-round features: lecturer tabs, correction requests (ask / allow / refuse, from any semester), unsuspend and unlock, deletes with safety checks, complete/reopen/edit/add/delete sessions and semesters, activity pages, registration filter and Super Admin edits, department report, academic report, plain-English audit trail, schema upgrade | `tests/test_new_features.py` | 28 |
 | Real browser: workflows 1–4 by clicking, live grade preview, unit counter, confirmation dialogs, 403 page, sign-out; **no sideways scroll at phone width (390 px) on 20 main pages**; **no JavaScript console errors**; **the sidebar stays loaded while pages change** (no full reloads) and Back works; lecturer tabs and correction request; completing a semester and reading the audit trail | `tests/e2e/test_browser.py` | 15 |
 
 ### The endpoint matrix (§8) in more detail

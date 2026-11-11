@@ -4,6 +4,14 @@ A web-based university management system with **four user roles** (Student, Lect
 
 Built for the *Lead Web Praxis Media Limited — Practical Software Development Test*.
 
+> ## Submitted workflow: **Lecturer Result Submission**
+> A lecturer signs in, sees their allocated courses, opens a course to see the registered students, enters CA and exam scores, lets the system calculate totals and grades, saves a draft, and submits the results for departmental approval. The lecturer also gets status and feedback, a performance summary, and correction requests after submission.
+>
+> - **Sign in as:** `lecturer@uemp.edu.ng` / `Lecturer@1234` and open **CSC 201** (11 students, ready for scores).
+> - **Full test guide**, covering every lecturer capability and the end-to-end workflow, with expected results: **[docs/LECTURER_WORKFLOW.md](docs/LECTURER_WORKFLOW.md)**
+>
+> The Student and Administrator areas are included only to support this workflow: students register for the course, and the department approves the results.
+
 | | |
 |---|---|
 | **Language** | Python 3.12 |
@@ -11,8 +19,9 @@ Built for the *Lead Web Praxis Media Limited — Practical Software Development 
 | **Database** | SQLAlchemy 2 ORM — SQLite locally, PostgreSQL in production |
 | **Auth** | Flask-Login sessions, scrypt password hashing, CSRF protection (Flask-WTF) |
 | **UI** | Server-rendered Jinja templates, Bootstrap 5, responsive (mobile → desktop) |
-| **Tests** | 208 pytest tests (passing on SQLite **and** PostgreSQL) + 12 real-browser tests — see [docs/TEST_REPORT.md](docs/TEST_REPORT.md) |
+| **Tests** | 239 pytest tests (passing on SQLite **and** PostgreSQL) + 15 real-browser tests — see [docs/TEST_REPORT.md](docs/TEST_REPORT.md) |
 
+Lecturer workflow test guide: **[docs/LECTURER_WORKFLOW.md](docs/LECTURER_WORKFLOW.md)**
 Technical documentation (architecture, database / ER diagram, permission logic, security): **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**
 Deployment (GitHub + Neon + Render): **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** · Test report: **[docs/TEST_REPORT.md](docs/TEST_REPORT.md)**
 
@@ -56,14 +65,17 @@ Open **http://127.0.0.1:5000** and sign in with one of the accounts below. The l
 
 | Role | Email | Password | What to try |
 |---|---|---|---|
-| **Super Admin** | `admin@uemp.edu.ng` | `Admin@1234` | University dashboard, faculties, sessions, user roles, audit trail |
-| **Department Admin** (Computer Science) | `csc.admin@uemp.edu.ng` | `Admin@1234` | **CSC 203 results are waiting for approval** |
+| Role | Email | Password | Use in the lecturer workflow |
+|---|---|---|---|
+| **Lecturer (main account)** | `lecturer@uemp.edu.ng` | `Lecturer@1234` | **CSC 201 is ready for score entry and submission**; CSC 101 (last session) is approved |
+| Another lecturer | `bakare@uemp.edu.ng` | `Lecturer@1234` | Owns CSC 203, so it shows a lecturer cannot open someone else's course |
+| **Department Admin** (Computer Science) | `csc.admin@uemp.edu.ng` | `Admin@1234` | Approves or returns the lecturer's results; allows or refuses correction requests |
+| Student in CSC 201 | `csc25002@uemp.edu.ng` | `Student@1234` | Sees CSC 201 results only after approval |
+| Student (not registered yet) | `student@uemp.edu.ng` | `Student@1234` | Supporting area: course registration |
+| Super Admin | `admin@uemp.edu.ng` | `Admin@1234` | Supporting area: university set-up, audit trail |
 | Department Admin (Economics) | `eco.admin@uemp.edu.ng` | `Admin@1234` | Shows that a department admin only sees their own department |
-| **Lecturer** | `lecturer@uemp.edu.ng` | `Lecturer@1234` | **CSC 201 is ready for score entry and submission** |
-| **Student** | `student@uemp.edu.ng` | `Student@1234` | **Not registered yet** — registration is open; has a CGPA from last session |
-| Student (already registered) | `csc25002@uemp.edu.ng` | `Student@1234` | Sees approved history; CSC 203 shows as "awaiting approval" |
 
-Other demo lecturers (`bakare@`, `musa@`, `eze@`, `adeyemi@` …`uemp.edu.ng`) use `Lecturer@1234`; all other demo students use `Student@1234`.
+Other demo lecturers (`musa@`, `eze@`, `adeyemi@` …`uemp.edu.ng`) use `Lecturer@1234`; all other demo students use `Student@1234`. All of this is fictitious test data.
 
 ### What the demo data contains
 
@@ -73,9 +85,24 @@ Other demo lecturers (`bakare@`, `musa@`, `eze@`, `adeyemi@` …`uemp.edu.ng`) u
 
 ---
 
-## 3. Five-minute demonstration script
+## 3. Demonstration script
 
-Follow these steps to see every required workflow end-to-end.
+### The lecturer workflow (submitted)
+
+A quick run-through follows. The step-by-step checklist with expected results is in **[docs/LECTURER_WORKFLOW.md](docs/LECTURER_WORKFLOW.md)**.
+
+1. Sign in as `lecturer@uemp.edu.ng`. The **Dashboard** shows this semester's courses, students taught, and results submitted or returned.
+2. Open **CSC 201**. Its tabs are **Overview, Class list, Enter scores, Submit, Performance, Request correction**.
+3. **Class list**: the 11 registered students, with **CSV** download and **Print**.
+4. **Enter scores**: CA (max 40) and exam (max 60). The total and grade appear as you type. **Save draft** as often as you like; out-of-range or non-numeric scores are refused.
+5. **Submit**: a checklist blocks submission until every student has both scores. Then **Submit for approval**, and the results lock.
+6. **Performance**: average, median, pass rate, grade distribution, top students, and students who may need support.
+7. Sign in as `csc.admin@uemp.edu.ng` → **Result Approval** → CSC 201 → **Return for correction** with a comment. The lecturer sees the feedback on their dashboard, fixes the score and resubmits. Every change is recorded (e.g. `Exam 45→50`).
+8. The admin clicks **Approve & publish**. `csc25002@uemp.edu.ng` now sees CSC 201 in **Semester Results**.
+9. After submitting, the lecturer uses **Request correction** to ask permission to edit. The department allows or refuses it.
+10. Security: as the lecturer, open `/lecturer/courses/7` (another lecturer's course) or `/admin/` → **403 Access denied**.
+
+### Supporting workflows (also built)
 
 **Workflow 1 — Student course registration**
 1. Sign in as `student@uemp.edu.ng`.
@@ -83,13 +110,6 @@ Follow these steps to see every required workflow end-to-end.
 3. Tick courses and watch the unit counter; press **Register selected courses**.
 4. Try to tamper: registering the same course again is refused (duplicate prevention).
 5. Click **Print slip** for a printable registration form.
-
-**Workflow 2 — Lecturer result submission**
-1. Sign in as `lecturer@uemp.edu.ng` → **CSC 201**. The course page has tabs: **Overview, Class list, Enter scores, Submit, Performance, Request correction**.
-2. **Class list** shows the registered students in a table (CSV and print available).
-3. **Enter scores**: type CA (max 40) and exam (max 60) scores. Total and grade appear as you type.
-4. **Save draft**, then **Submit for approval**. The sheet is now locked. **Submit** shows the status and the department's feedback, and **Performance** shows the course and student summaries.
-5. To change locked results, use **Request correction**. The department allows or refuses it in **Result Approval → Correction requested**.
 
 **Workflow 3 — Departmental result approval**
 1. Sign in as `csc.admin@uemp.edu.ng` → **Result Approval**.
@@ -123,8 +143,8 @@ Follow these steps to see every required workflow end-to-end.
 ├── requirements-dev.txt    # + lint and browser-test tools
 ├── render.yaml / Procfile  # deployment (Render web service, Neon database)
 ├── .github/workflows/      # GitHub Actions: lint + tests on SQLite, PostgreSQL, browser
-├── docs/                   # ARCHITECTURE (+ ER diagram), DEPLOYMENT, TEST_REPORT
-├── tests/                  # 208 pytest tests; tests/e2e = browser tests
+├── docs/                   # LECTURER_WORKFLOW (test guide), ARCHITECTURE (+ ER diagram), DEPLOYMENT, TEST_REPORT
+├── tests/                  # 239 pytest tests; tests/e2e = browser tests
 └── uemp/
     ├── __init__.py         # app factory: wires everything together
     ├── extensions.py       # database, login manager, CSRF objects
@@ -200,17 +220,19 @@ Put the app behind HTTPS (the production config only sends cookies over HTTPS).
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q                                                          # 208 tests, in-memory SQLite
+pytest -q                                                          # 239 tests, in-memory SQLite
 TEST_DATABASE_URL=postgresql://user:pass@localhost/uemp_test pytest -q   # same tests on PostgreSQL
 playwright install --with-deps chromium && RUN_E2E=1 pytest tests/e2e -v  # real-browser tests
 ```
+
+Only the lecturer workflow: `pytest -q tests/test_req_2b_lecturer.py tests/test_results.py tests/test_req_4_workflows.py`
 
 Each test gets a fresh database with the demo data. The tests are organised by the brief's sections, so each requirement can be traced to its test:
 - `test_req_2a…2d`: every ability and restriction of the four roles;
 - `test_req_4_workflows`: workflows 1–4, step by step;
 - `test_req_5_technical`: hashing, sessions, CSRF, DB-level duplicate prevention, audit, error pages;
 - `test_req_6_business_rules`: rules 1–8 and GPA;
-- `test_req_8_endpoint_matrix`: **every route in the app** called as anonymous and as each role (370 access checks);
+- `test_req_8_endpoint_matrix`: **every route in the app** called as anonymous and as each role (460 access checks);
 - `tests/e2e`: Chromium clicks through the workflows and checks phone layouts and JavaScript errors.
 
 Full requirement-to-test map and the bugs found: [docs/TEST_REPORT.md](docs/TEST_REPORT.md). GitHub Actions runs all of this on every push.

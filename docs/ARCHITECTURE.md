@@ -14,7 +14,7 @@ This document explains **how the portal is built and why**: the architecture, th
 | **Flask-WTF / WTForms** | Server-side form validation and CSRF tokens on every form. |
 | **Jinja templates + Bootstrap 5** | Server-rendered pages: fast, accessible, work without a JavaScript build step, responsive on phones. JavaScript is used only for convenience (live grade preview, unit counter), never for security. |
 | **htmx 2 (self-hosted, `static/vendor/htmx.min.js`)** | Makes the portal feel like a single-page app with no extra code: `hx-boost` on `<body>` turns every link and form into a background request, and only the `#app-main` panel is swapped. The sidebar, CSS and scripts stay loaded, the address bar and Back button still work, and without JavaScript the same links and forms work as normal pages. Downloads (`hx-boost="false"`) and print pages (`target="_blank"`) are excluded. |
-| **pytest** | 237 automated tests for rules, permissions and workflows, plus 15 browser tests. |
+| **pytest** | 239 automated tests for rules, permissions and workflows, plus 15 browser tests. |
 
 A single-page app (React + API) was considered. For a 72-hour MVP, server-rendered pages give the same functionality with far less code and a smaller attack surface. Because all business rules live in the **service layer** (see §2), a JSON API for a future mobile app can be added later by calling the same services.
 
@@ -390,7 +390,7 @@ The MVP is deliberately simple, but each of these is a small change rather than 
 
 ## 8. Testing
 
-`pytest` runs 208 tests, each against a fresh database seeded with the demo data. They pass on SQLite and on PostgreSQL (`TEST_DATABASE_URL`). A further 12 browser tests live in `tests/e2e`. The brief-by-brief map is in [TEST_REPORT.md](TEST_REPORT.md).
+`pytest` runs 239 tests, each against a fresh database seeded with the demo data. They pass on SQLite and on PostgreSQL (`TEST_DATABASE_URL`). A further 15 browser tests live in `tests/e2e`. The brief-by-brief map is in [TEST_REPORT.md](TEST_REPORT.md).
 
 Core test files:
 
