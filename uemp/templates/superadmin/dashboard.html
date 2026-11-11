@@ -63,8 +63,9 @@
       <div class="card-body">
         <ul class="timeline">
           {% for a in recent %}
-            <li><div class="small">{{ a.description | truncate(110) }}</div>
-              <div class="small muted">{{ a.actor.display_name if a.actor else 'System' }} · {{ a.created_at | dt }}</div></li>
+            {% set e = describe(a) %}
+            <li><div class="small"><strong>{{ e.title }}</strong> — {{ a.description | truncate(100) }}</div>
+              <div class="small muted">{{ e.who }}{% if e.who_role %} ({{ e.who_role }}){% endif %} · {{ a.created_at | dt }}</div></li>
           {% else %}<li class="small muted">No activity yet.</li>{% endfor %}
         </ul>
       </div>

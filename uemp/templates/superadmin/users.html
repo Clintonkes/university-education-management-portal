@@ -2,7 +2,7 @@
 {% import "_macros.html" as ui %}
 {% block title %}User accounts{% endblock %}
 {% block content %}
-{% call ui.page_head("User accounts", "Every account in the portal. Activate, deactivate, suspend or change staff roles.", "University") %}
+{% call ui.page_head("User accounts", "Every account in the portal. Activate, deactivate, suspend, unsuspend, unlock, delete or change staff roles.", "University") %}
   <a class="btn btn-light" href="{{ url_for('admin.students_new') }}"><i class="bi bi-person-plus me-1"></i>Student</a>
   <a class="btn btn-light" href="{{ url_for('admin.lecturers_new') }}"><i class="bi bi-person-plus me-1"></i>Lecturer</a>
   <a class="btn btn-primary" href="{{ url_for('superadmin.users_new') }}"><i class="bi bi-shield-plus me-1"></i>Administrator</a>
@@ -10,15 +10,17 @@
 
 <div class="card table-card">
   <div class="card-header">
-    <form class="filter-bar w-100" method="get">
-      <input class="form-control" name="q" value="{{ request.args.get('q', '') }}" placeholder="Search name or email">
+    <form class="filter-bar w-100" method="get" data-auto-filter>
+      <input class="form-control" type="search" id="user-search" name="q" value="{{ request.args.get('q', '') }}" placeholder="Search name or email" aria-label="Search">
       <select name="role" class="form-select"><option value="">All roles</option>
         {% for r in roles %}<option value="{{ r.value }}" {{ 'selected' if request.args.get('role') == r.value }}>{{ r.label }}</option>{% endfor %}</select>
       <select name="status" class="form-select"><option value="">Any status</option>
         {% for st in statuses %}<option value="{{ st }}" {{ 'selected' if request.args.get('status') == st }}>{{ st | title }}</option>{% endfor %}</select>
       <select name="department_id" class="form-select"><option value="">All departments</option>
         {% for d in departments %}<option value="{{ d.id }}" {{ 'selected' if request.args.get('department_id') == d.id|string }}>{{ d.name }}</option>{% endfor %}</select>
-      <button class="btn btn-outline-primary"><i class="bi bi-funnel"></i> Filter</button>
+      <select name="locked" class="form-select" aria-label="Locked"><option value="">Locked or not</option>
+        <option value="1" {{ 'selected' if request.args.get('locked') == '1' }}>Locked out now</option></select>
+      <noscript><button class="btn btn-outline-primary">Filter</button></noscript>
     </form>
   </div>
   <div class="table-responsive">
@@ -30,7 +32,7 @@
           <td><div class="fw-semibold">{{ u.display_name }}</div><div class="small muted">{{ u.email }}</div></td>
           <td><span class="badge text-bg-light border">{{ u.role_label }}</span></td>
           <td class="small">{{ u.department.name if u.department else '—' }}</td>
-          <td>{{ ui.status_badge(u.status) }}</td>
+          <td>{{ ui.status_badge(u.status) }}{% if u.is_locked() %} <span class="badge badge-soft st-pending" title="Too many wrong passwords"><i class="bi bi-lock"></i> locked</span>{% endif %}</td>
           <td class="small muted">{{ u.last_login_at | dt }}</td>
           <td class="text-end text-nowrap">
             {% if u.id != current_user.id %}
@@ -46,12 +48,24 @@
                   <li><a class="dropdown-item" href="{{ url_for('superadmin.users_role', user_id=u.id) }}"><i class="bi bi-shield-lock me-2"></i>Change role</a></li>
                 {% endif %}
                 <li><hr class="dropdown-divider"></li>
+                {% set verbs = {'active': ('Unsuspend' if u.status == 'suspended' else 'Activate'), 'inactive': 'Deactivate', 'suspended': 'Suspend'} %}
                 {% for st in ["active", "inactive", "suspended"] if st != u.status %}
                   <li><form method="post" action="{{ url_for('admin.users_status', user_id=u.id) }}">{{ ui.csrf() }}
                     <input type="hidden" name="status" value="{{ st }}">
-                    <button class="dropdown-item {{ 'text-danger' if st != 'active' }}" data-confirm="Set {{ u.email }} to {{ st }}?">
-                      {{ {'active':'Activate','inactive':'Deactivate','suspended':'Suspend'}[st] }}</button></form></li>
+                    <input type="hidden" name="next" value="{{ request.full_path }}">
+                    <button class="dropdown-item {{ 'text-danger' if st != 'active' else 'text-success' }}" data-confirm="{{ verbs[st] }} {{ u.full_name }} ({{ u.email }})?">
+                      <i class="bi bi-{{ {'active':'check-circle','inactive':'pause-circle','suspended':'slash-circle'}[st] }} me-2"></i>{{ verbs[st] }}</button></form></li>
                 {% endfor %}
+                {% if u.is_locked() %}
+                  <li><form method="post" action="{{ url_for('admin.users_unlock', user_id=u.id) }}">{{ ui.csrf() }}
+                    <input type="hidden" name="next" value="{{ request.full_path }}">
+                    <button class="dropdown-item"><i class="bi bi-unlock me-2"></i>Unlock (wrong passwords)</button></form></li>
+                {% endif %}
+                <li><hr class="dropdown-divider"></li>
+                <li><form method="post" action="{{ url_for('admin.users_delete', user_id=u.id) }}">{{ ui.csrf() }}
+                  <input type="hidden" name="next" value="{{ request.full_path }}">
+                  <button class="dropdown-item text-danger" data-confirm="Permanently delete {{ u.full_name }} ({{ u.email }})?{{ ' Their registrations and results will be deleted too.' if u.role == 'student' }} This cannot be undone.">
+                    <i class="bi bi-trash me-2"></i>Delete account</button></form></li>
               </ul>
             </div>
             {% else %}<span class="small muted">You</span>{% endif %}

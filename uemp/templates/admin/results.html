@@ -7,8 +7,8 @@
   <div class="card-header">
     <form class="filter-bar w-100" method="get">
       {{ ui.semester_select(semesters, semester) }}
-      <div class="btn-group" role="group" aria-label="Status filter">
-        {% for key, label in [('submitted','Awaiting review'),('approved','Approved'),('returned','Returned'),('draft','Draft'),('all','All')] %}
+      <div class="btn-group flex-wrap" role="group" aria-label="Status filter">
+        {% for key, label in [('submitted','Awaiting review'),('correction','Correction requested'),('approved','Approved'),('returned','Returned'),('draft','Draft'),('all','All')] %}
           <button name="status" value="{{ key }}" class="btn btn-sm {{ 'btn-primary' if status == key else 'btn-outline-primary' }}">{{ label }}</button>
         {% endfor %}
       </div>
@@ -22,12 +22,12 @@
       <tbody>
       {% for s in sheets %}
         <tr>
-          <td><div class="fw-semibold">{{ s.course.code }}</div><div class="small muted">{{ s.course.title }}</div></td>
+          <td><div class="fw-semibold">{{ s.course.code }}</div><div class="small muted">{{ s.course.title }}{% if status == 'correction' %} · {{ s.semester.name }}{% endif %}</div></td>
           <td class="small">{{ s.lecturer.display_name }}</td>
           <td class="text-center">{{ s.entries | length }}</td>
           <td class="small muted">{{ s.submitted_at | dt }}</td>
-          <td>{{ ui.status_badge(s.status) }}</td>
-          <td class="text-end"><a class="btn btn-sm {{ 'btn-primary' if s.status == 'submitted' else 'btn-light' }}" href="{{ url_for('admin.results_review', sheet_id=s.id) }}">{{ 'Review' if s.status == 'submitted' else 'Open' }}</a></td>
+          <td>{{ ui.status_badge(s.status) }}{% if s.correction_pending %} <span class="badge badge-soft st-pending"><i class="bi bi-question-circle"></i> correction requested</span>{% endif %}</td>
+          <td class="text-end"><a class="btn btn-sm {{ 'btn-primary' if s.status == 'submitted' or s.correction_pending else 'btn-light' }}" href="{{ url_for('admin.results_review', sheet_id=s.id) }}">{{ 'Review' if s.status == 'submitted' or s.correction_pending else 'Open' }}</a></td>
         </tr>
       {% endfor %}
       </tbody>

@@ -27,7 +27,7 @@ def test_view_and_manage_assigned_courses_only(as_lecturer):
 
 
 def test_view_students_registered_for_assigned_course(as_lecturer):
-    page = as_lecturer.get(f"/lecturer/courses/{allocation_for('CSC 201').id}").get_data(as_text=True)
+    page = as_lecturer.get(f"/lecturer/courses/{allocation_for('CSC 201').id}?tab=class-list").get_data(as_text=True)
     for n in range(2, 13):
         assert f"CSC/2025/{n:03d}" in page
     assert "CSC/2025/001" not in page  # the demo student has not registered CSC 201
@@ -106,7 +106,7 @@ def test_view_course_and_student_performance_summary(as_lecturer):
     first = sheet.entries[0]
     data[f"ca_{first.id}"], data[f"exam_{first.id}"] = "10", "20"  # 30 = F
     as_lecturer.post(f"/lecturer/courses/{allocation.id}/scores", data=data)
-    page = as_lecturer.get(f"/lecturer/courses/{allocation.id}").get_data(as_text=True)
+    page = as_lecturer.get(f"/lecturer/courses/{allocation.id}?tab=performance").get_data(as_text=True)
     expected_average = round((75 * 10 + 30) / 11, 1)
     assert f">{expected_average}<" in page.replace(" ", "")
     assert "91%" in page  # 10 of 11 passed

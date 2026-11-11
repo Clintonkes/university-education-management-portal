@@ -76,7 +76,7 @@
 {% if page and page.pages > 1 %}
 <nav class="d-flex justify-content-between align-items-center px-3 py-2 border-top small">
   <span class="muted">Page {{ page.page }} of {{ page.pages }} · {{ page.total }} records</span>
-  {% set args = request.args.to_dict() %}
+  {% set args = dict(request.view_args or {}, **request.args.to_dict()) %}
   <ul class="pagination pagination-sm m-0">
     <li class="page-item {{ 'disabled' if not page.has_prev }}">
       <a class="page-link" href="{{ url_for(endpoint, **dict(args, page=page.prev_num)) if page.has_prev else '#' }}">Previous</a></li>
@@ -89,7 +89,7 @@
 
 {# Drop-down to switch semester; keeps other filters. #}
 {% macro semester_select(semesters, selected) %}
-<select name="semester_id" class="form-select" onchange="this.form.submit()" aria-label="Semester">
+<select name="semester_id" class="form-select" onchange="this.form.requestSubmit()" aria-label="Semester">
   {% for s in semesters %}
     <option value="{{ s.id }}" {{ 'selected' if selected and s.id == selected.id }}>{{ s.name }}{{ ' (current)' if s.is_current }}</option>
   {% endfor %}
@@ -114,11 +114,60 @@
 {# Super Admin only: pick one department to narrow an admin page. #}
 {% macro dept_filter(departments) %}
 {% if departments %}
-<select name="department_id" class="form-select" onchange="this.form.submit()" aria-label="Department">
+<select name="department_id" class="form-select" onchange="this.form.requestSubmit()" aria-label="Department">
   <option value="">All departments</option>
   {% for d in departments %}
     <option value="{{ d.id }}" {{ 'selected' if request.args.get('department_id') == d.id|string }}>{{ d.name }}</option>
   {% endfor %}
 </select>
 {% endif %}
+{% endmacro %}
+
+{#
+  Account access controls — Super Admin only (Perm.ACCOUNTS_STATUS / RECORDS_DELETE).
+  Department admins see the account's status but cannot change it.
+  "Unsuspend" is simply "make a suspended account active again".
+#}
+{% macro account_actions(person, next_url=None) %}
+<div class="card mb-3">
+  <div class="card-header">Account access {{ status_badge(person.status) }}</div>
+  <div class="card-body">
+    {% if person.is_locked() %}
+      <div class="alert alert-warning small py-2 mb-2"><i class="bi bi-lock me-1"></i>Locked after too many wrong passwords.</div>
+    {% endif %}
+    {% if can(Perm.ACCOUNTS_STATUS) and person.id != current_user.id %}
+      <div class="d-flex flex-wrap gap-2">
+        {% set verbs = {'active': ('Unsuspend' if person.status == 'suspended' else 'Activate'), 'inactive': 'Deactivate', 'suspended': 'Suspend'} %}
+        {% for st in ["active", "inactive", "suspended"] if st != person.status %}
+          <form method="post" action="{{ url_for('admin.users_status', user_id=person.id) }}">
+            {{ csrf() }}<input type="hidden" name="status" value="{{ st }}">
+            {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}">{% endif %}
+            <button class="btn btn-sm {{ 'btn-outline-primary' if st == 'active' else 'btn-outline-danger' }}"
+                    data-confirm="{{ verbs[st] }} {{ person.full_name }}?">{{ verbs[st] }}</button>
+          </form>
+        {% endfor %}
+        {% if person.is_locked() %}
+          <form method="post" action="{{ url_for('admin.users_unlock', user_id=person.id) }}">{{ csrf() }}
+            <button class="btn btn-sm btn-outline-primary"><i class="bi bi-unlock me-1"></i>Unlock</button></form>
+        {% endif %}
+      </div>
+      <div class="small muted mt-2">Inactive and suspended accounts cannot sign in.</div>
+    {% else %}
+      <div class="small muted">Only the Super Admin can activate, deactivate or suspend accounts.</div>
+    {% endif %}
+  </div>
+</div>
+{% endmacro %}
+
+{# Permanent delete button in a red "danger zone" card — Super Admin only. #}
+{% macro delete_card(action_url, what, warning) %}
+<div class="card danger-zone mb-3">
+  <div class="card-header"><span><i class="bi bi-exclamation-triangle me-1"></i>Danger zone</span></div>
+  <div class="card-body">
+    <p class="small muted mb-2">{{ warning }}</p>
+    <form method="post" action="{{ action_url }}">{{ csrf() }}
+      <button class="btn btn-sm btn-danger" data-confirm="Permanently delete {{ what }}? This cannot be undone."><i class="bi bi-trash me-1"></i>Delete {{ what }}</button>
+    </form>
+  </div>
+</div>
 {% endmacro %}

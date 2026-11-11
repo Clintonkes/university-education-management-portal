@@ -19,7 +19,13 @@
           <td class="small">{{ program.department.name }}</td>
           <td class="small">100 – {{ program.max_level }} Level <span class="muted">({{ program.duration_years }} yrs)</span></td>
           <td class="text-center">{{ students }}</td>
-          <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin.programs_edit', program_id=program.id) }}">Edit</a></td>
+          <td class="text-end text-nowrap">
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin.programs_edit', program_id=program.id) }}">Edit</a>
+            <form method="post" action="{{ url_for('admin.programs_delete', program_id=program.id) }}" class="d-inline">{{ ui.csrf() }}
+              <button class="btn btn-sm btn-outline-danger" {{ 'disabled title="Move its students to another programme first"' | safe if students }}
+                      data-confirm="Delete the programme {{ program.name }}? Its courses stay in the catalogue." aria-label="Delete {{ program.name }}"><i class="bi bi-trash"></i></button>
+            </form>
+          </td>
         </tr>
       {% endfor %}
       </tbody>
@@ -29,5 +35,5 @@
     {{ ui.empty("No programmes yet", "Create the first programme for your department.", "diagram-3") }}
   {% endif %}
 </div>
-<p class="small muted mt-3"><i class="bi bi-info-circle me-1"></i>Academic levels run from 100 Level up to the programme's duration × 100 (e.g. a 5-year B.Eng. ends at 500 Level).</p>
+<p class="small muted mt-3"><i class="bi bi-info-circle me-1"></i>A programme can only be deleted when no student is enrolled on it. Academic levels run from 100 Level up to the programme's duration × 100 (e.g. a 5-year B.Eng. ends at 500 Level).</p>
 {% endblock %}

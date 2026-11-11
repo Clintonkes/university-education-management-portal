@@ -155,6 +155,6 @@ def history():
 
 @bp.route("/statement")
 def statement():
-    """Printable statement of result (all approved semesters)."""
-    return render_template("student/print_statement.html", history=grading.academic_history(current_user.id),
-                           profile=current_user.student_profile)
+    """Printable academic report / statement of result (approved results only)."""
+    return render_template("shared/academic_report.html", student=current_user,
+                           report=grading.academic_report(current_user.id))

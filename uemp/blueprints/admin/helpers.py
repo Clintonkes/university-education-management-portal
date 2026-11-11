@@ -32,9 +32,18 @@ def department_choices(include_blank: bool = False) -> list[tuple[int, str]]:
     return ([(0, "— Select department —")] if include_blank else []) + choices
 
 
+def _filter_ids() -> list[int] | None:
+    """Departments chosen in the page's filter (used to narrow other drop-downs)."""
+    try:
+        return department_filter()
+    except Exception:  # outside a request, or not allowed: fall back to the admin's scope
+        return allowed_department_ids()
+
+
 def program_choices() -> list[tuple[int, str]]:
-    query = scoped(db.select(Program), Program.department_id).order_by(Program.name)
-    return [(p.id, f"{p.degree} {p.name} ({p.code})") for p in db.session.scalars(query)]
+    """Programmes the admin may use. If a department is picked in the filter, only its programmes."""
+    query = limit_to(scoped(db.select(Program), Program.department_id), Program.department_id, _filter_ids())
+    return [(p.id, f"{p.degree} {p.name} ({p.code})") for p in db.session.scalars(query.order_by(Program.name))]
 
 
 def level_choices() -> list[tuple[int, str]]:
@@ -42,15 +51,16 @@ def level_choices() -> list[tuple[int, str]]:
 
 
 def lecturer_choices() -> list[tuple[int, str]]:
-    query = scoped(
+    query = limit_to(scoped(
         db.select(User).where(User.role == Role.LECTURER, User.status == AccountStatus.ACTIVE),
         User.department_id,
-    ).order_by(User.last_name)
+    ), User.department_id, _filter_ids()).order_by(User.last_name)
     return [(u.id, f"{u.display_name} — {u.department.code if u.department else ''}") for u in db.session.scalars(query)]
 
 
 def course_choices(term: str | None = None) -> list[tuple[int, str]]:
-    query = scoped(db.select(Course).where(Course.is_active.is_(True)), Course.department_id).order_by(Course.code)
+    query = limit_to(scoped(db.select(Course).where(Course.is_active.is_(True)), Course.department_id),
+                     Course.department_id, _filter_ids()).order_by(Course.code)
     if term:
         query = query.where(Course.semester_term == term)
     return [(c.id, f"{c.code} — {c.title} ({c.units}u, {c.level}L)") for c in db.session.scalars(query)]

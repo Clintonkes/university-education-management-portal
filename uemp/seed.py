@@ -103,7 +103,8 @@ def _score_sheet(course, semester, lecturer, students, status, rng, reviewer=Non
 
 def _audit(actor, action, description, entity, when):
     """Write a back-dated audit entry so the demo history looks realistic."""
-    db.session.add(AuditLog(actor=actor, action=action, description=description, entity_type=type(entity).__name__,
+    db.session.add(AuditLog(actor=actor, actor_name=actor.display_name, actor_role=actor.role, action=action,
+                            description=description, entity_type=type(entity).__name__,
                             entity_id=entity.id, created_at=when, ip_address="seed"))
 
 

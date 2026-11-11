@@ -15,7 +15,7 @@ KEY RULES ENFORCED BY THE DATABASE
       user gets a friendly message instead of an error.
 """
 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..extensions import db
@@ -86,6 +86,10 @@ class CourseRegistration(TimestampMixin, db.Model):
     student_id: Mapped[int] = mapped_column(db.ForeignKey("users.id"), nullable=False, index=True)
     course_id: Mapped[int] = mapped_column(db.ForeignKey("courses.id"), nullable=False, index=True)
     semester_id: Mapped[int] = mapped_column(db.ForeignKey("semesters.id"), nullable=False, index=True)
+    # Set by administrators: why the student is taking the course, and a note.
+    registration_type: Mapped[str] = mapped_column(db.String(20), default="regular",
+                                                   server_default=text("'regular'"), nullable=False)
+    remarks: Mapped[str | None] = mapped_column(db.Text)
 
     student: Mapped[User] = relationship()
     course: Mapped[Course] = relationship()
@@ -93,3 +97,9 @@ class CourseRegistration(TimestampMixin, db.Model):
     result: Mapped["ResultEntry | None"] = relationship(  # noqa: F821  (defined in result.py)
         back_populates="registration", uselist=False
     )
+
+    TYPES = {"regular": "Regular", "carryover": "Carry-over (resit)", "elective": "Elective"}
+
+    @property
+    def type_label(self) -> str:
+        return self.TYPES.get(self.registration_type, self.registration_type.title())

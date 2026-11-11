@@ -2,13 +2,13 @@
 {% import "_macros.html" as ui %}
 {% block title %}Reports{% endblock %}
 {% block content %}
-{% call ui.page_head("Reports", "Student lists, course registration and academic performance.", "Results") %}
-  <a class="btn btn-light" href="{{ url_for('admin.reports_csv', **dict(request.args.to_dict(), tab=tab)) }}"><i class="bi bi-download me-1"></i>Export CSV</a>
+{% call ui.page_head("Reports", "Department report, student lists, course registration and academic performance.", "Results") %}
+  {% if tab != 'department' %}<a class="btn btn-light" hx-boost="false" download href="{{ url_for('admin.reports_csv', **dict(request.args.to_dict(), tab=tab)) }}"><i class="bi bi-download me-1"></i>Export CSV</a>{% endif %}
   <button class="btn btn-light" onclick="window.print()"><i class="bi bi-printer me-1"></i>Print</button>
 {% endcall %}
 
 <ul class="nav nav-pills mb-3 no-print">
-  {% for key, label, icon in [('students','Student list','people'),('registrations','Course registrations','card-checklist'),('performance','Performance summary','graph-up')] %}
+  {% for key, label, icon in [('department','Department report','file-earmark-bar-graph'),('students','Student list','people'),('registrations','Course registrations','card-checklist'),('performance','Performance summary','graph-up')] %}
     <li class="nav-item"><a class="nav-link {{ 'active' if tab == key }}" href="{{ url_for('admin.reports', tab=key, semester_id=semester.id if semester else None, department_id=request.args.get('department_id')) }}"><i class="bi bi-{{ icon }} me-1"></i>{{ label }}</a></li>
   {% endfor %}
 </ul>
@@ -17,13 +17,16 @@
   <input type="hidden" name="tab" value="{{ tab }}">
   {% if tab != 'students' %}{{ ui.semester_select(semesters, semester) }}{% endif %}
   {% if tab == 'students' %}
-    <select name="level" class="form-select" onchange="this.form.submit()"><option value="">All levels</option>
+    <select name="level" class="form-select" onchange="this.form.requestSubmit()"><option value="">All levels</option>
       {% for lvl in config.ACADEMIC_LEVELS %}<option value="{{ lvl }}" {{ 'selected' if request.args.get('level') == lvl|string }}>{{ lvl }} Level</option>{% endfor %}</select>
   {% endif %}
   {{ ui.dept_filter(filter_departments) }}
 </form>
 
-{% if tab == 'students' %}
+{% if tab == 'department' %}
+  {% with r = report %}{% include "admin/_department_report.html" %}{% endwith %}
+
+{% elif tab == 'students' %}
   <div class="row g-4">
     <div class="col-lg-4"><div class="card"><div class="card-header">Students by level</div><div class="card-body">
       {{ ui.bars(levels | map('list') | list) }}</div></div></div>

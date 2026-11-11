@@ -9,7 +9,7 @@
     <i class="bi bi-arrow-return-left fs-5"></i>
     <div class="flex-grow-1"><strong>{{ r.allocation.course.code }} was returned for correction.</strong>
       <div class="small">{{ r.sheet.review_comment }}</div></div>
-    <a class="btn btn-sm btn-danger" href="{{ url_for('lecturer.courses_detail', allocation_id=r.allocation.id) }}">Fix now</a>
+    <a class="btn btn-sm btn-danger" href="{{ url_for('lecturer.courses_detail', allocation_id=r.allocation.id, tab='scores') }}">Fix now</a>
   </div>
 {% endfor %}
 
@@ -33,9 +33,13 @@
           <td class="text-center">{{ r.allocation.course.units }}</td>
           <td class="text-center">{{ r.allocation.course.level }}</td>
           <td class="text-center">{{ r.students }}</td>
-          <td>{{ ui.status_badge(r.sheet.status if r.sheet else 'draft') }}</td>
-          <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('lecturer.courses_detail', allocation_id=r.allocation.id) }}">
-            {{ 'Enter scores' if not r.sheet or r.sheet.status in ['draft','returned'] else 'View' }}</a></td>
+          <td>{{ ui.status_badge(r.sheet.status if r.sheet else 'draft') }}
+            {% if r.sheet and r.sheet.correction_pending %}<span class="badge badge-soft st-pending">correction requested</span>{% endif %}</td>
+          <td class="text-end text-nowrap">
+            {% set editable = not r.sheet or r.sheet.status in ['draft','returned'] %}
+            <a class="btn btn-sm btn-light" href="{{ url_for('lecturer.courses_detail', allocation_id=r.allocation.id, tab='class-list') }}">Class list</a>
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('lecturer.courses_detail', allocation_id=r.allocation.id, tab='scores' if editable else 'overview') }}">
+            {{ 'Enter scores' if editable else 'View' }}</a></td>
         </tr>
       {% endfor %}
       </tbody>

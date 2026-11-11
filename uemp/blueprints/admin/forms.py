@@ -94,3 +94,13 @@ class ReviewForm(FlaskForm):
 class PasswordResetForm(FlaskForm):
     new_password = PasswordField("New password", validators=[DataRequired(), Length(min=8, max=128)])
     submit = SubmitField("Reset password")
+
+
+class RegistrationEditForm(FlaskForm):
+    """Super Admin correction of one course registration."""
+    course_id = SelectField("Course", coerce=int, validators=[DataRequired()],
+                            description="Only courses for this registration's semester are listed.")
+    registration_type = SelectField("Registration type", description="Carry-over = repeating a course failed before.")
+    remarks = TextAreaField("Remarks", validators=[Optional(), Length(max=500)],
+                            description="Optional note, e.g. 'Approved late registration'.")
+    submit = SubmitField("Save changes")

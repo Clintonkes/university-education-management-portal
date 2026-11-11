@@ -2,7 +2,12 @@
 Reports (/admin/reports) — "Student lists, course registration reports and
 academic performance summaries".
 
-The page has three tabs. Each tab can also be downloaded as a CSV file.
+The page has four tabs:
+    department     the Department Report (key figures with their formulas)
+    students       student list
+    registrations  course registration report
+    performance    academic performance summary
+The last three can also be downloaded as CSV files.
 Department admins see their department; the Super Admin sees everything
 (and can filter by department).
 """
@@ -10,14 +15,14 @@ Department admins see their department; the Super Admin sees everything
 from flask import abort, render_template, request
 
 from ...extensions import db
-from ...models import Role, StudentProfile, User
+from ...models import Department, Role, StudentProfile, User
 from ...services import reports as report_service
 from ...web import all_semesters, csv_response, selected_semester
 from ...security import Perm, permission_required
 from . import bp
 from .helpers import department_filter, limit_to
 
-TABS = ("students", "registrations", "performance")
+TABS = ("department", "students", "registrations", "performance")
 
 
 def _student_rows(dept_ids):
@@ -32,14 +37,18 @@ def _student_rows(dept_ids):
 @bp.route("/reports")
 @permission_required(Perm.REPORTS_VIEW)
 def reports():
-    tab = request.args.get("tab", "students")
+    tab = request.args.get("tab", "department")
     if tab not in TABS:
         abort(404)
     semester = selected_semester()
     dept_ids = department_filter()
 
     context = {"tab": tab, "semester": semester, "semesters": all_semesters()}
-    if tab == "students":
+    if tab == "department":
+        department = db.session.get(Department, dept_ids[0]) if dept_ids and len(dept_ids) == 1 else None
+        context["report"] = report_service.department_report(dept_ids, semester)
+        context["scope_name"] = f"{department.name} Department" if department else "All departments"
+    elif tab == "students":
         context["students"] = _student_rows(dept_ids)
         context["levels"] = report_service.students_per_level(dept_ids)
     elif tab == "registrations" and semester:

@@ -13,7 +13,8 @@ This document explains **how the portal is built and why**: the architecture, th
 | **Flask-Login** | Proven session management: signed cookies, "strong" session protection, automatic logout of deactivated users. |
 | **Flask-WTF / WTForms** | Server-side form validation and CSRF tokens on every form. |
 | **Jinja templates + Bootstrap 5** | Server-rendered pages: fast, accessible, work without a JavaScript build step, responsive on phones. JavaScript is used only for convenience (live grade preview, unit counter), never for security. |
-| **pytest** | 85 automated tests for rules, permissions and workflows. |
+| **htmx 2 (self-hosted, `static/vendor/htmx.min.js`)** | Makes the portal feel like a single-page app with no extra code: `hx-boost` on `<body>` turns every link and form into a background request, and only the `#app-main` panel is swapped. The sidebar, CSS and scripts stay loaded, the address bar and Back button still work, and without JavaScript the same links and forms work as normal pages. Downloads (`hx-boost="false"`) and print pages (`target="_blank"`) are excluded. |
+| **pytest** | 237 automated tests for rules, permissions and workflows, plus 15 browser tests. |
 
 A single-page app (React + API) was considered. For a 72-hour MVP, server-rendered pages give the same functionality with far less code and a smaller attack surface. Because all business rules live in the **service layer** (see §2), a JSON API for a future mobile app can be added later by calling the same services.
 
@@ -263,6 +264,9 @@ Every action has a permission name. Each role gets a set of permissions:
 | View registrations, review results, reports | | | ✔ *own dept* | ✔ *all* |
 | University dashboard, faculties, departments, sessions | | | | ✔ |
 | Manage every account, change roles, read audit trail | | | | ✔ |
+| Activate / deactivate / suspend / unsuspend / unlock accounts | | | | ✔ |
+| Delete records (faculties, departments, programmes, people, sessions, semesters) | | | | ✔ |
+| Edit or remove a student's course registration | | | | ✔ |
 
 The **Roles & Permissions** page in the Super Admin area renders this table directly from the code, so the documentation can never disagree with what is enforced.
 
@@ -308,6 +312,30 @@ allowed_department_ids(user)
    │                   ▼                     │
    └───── edit ──── RETURNED ◀───────────────┘
 ```
+
+**Correction requests.** Once results are SUBMITTED or APPROVED the lecturer cannot edit them. The **Request correction** tab lets them ask, with a reason (`results.request_correction`). The department sees the request in **Result Approval → Correction requested** (from any semester) and on its dashboard, and either:
+- **allows it** (`grant_correction`): the sheet goes to RETURNED, so the lecturer can edit and resubmit, and an approved sheet is hidden from students again; or
+- **refuses it** (`decline_correction`): a reason is required, and the sheet stays as it was.
+
+A sheet cannot be approved while a request is waiting.
+
+### Academic calendar
+
+Session → semesters. A semester moves through **Make current → Open registration → Close registration → Mark completed**. A completed semester can never be made current or have its registration reopened, unless the Super Admin explicitly **Reopens** it. A session can be marked completed once all its semesters are. Sessions and semesters can be edited at any time. They can be deleted only while nothing (registrations, allocations, result sheets) has been recorded in them.
+
+### Deleting records safely
+
+Deletes are Super Admin only and refuse anything that would break history:
+- faculties with departments;
+- departments with programmes, courses or people;
+- programmes with students;
+- staff named on allocations or result sheets (deactivate them instead).
+
+Deleting a student also removes their registrations and scores. Audit entries are never deleted: each keeps a copy of the person's name and role (`actor_name`, `actor_role`).
+
+### Database upgrades
+
+`uemp/schema.py` compares the models with the live database on startup and adds any missing columns (`ALTER TABLE … ADD COLUMN`). A database created by an earlier version, such as an existing Neon database, upgrades itself on the next deploy without losing data. New columns are therefore always nullable or have a server default.
 
 ---
 

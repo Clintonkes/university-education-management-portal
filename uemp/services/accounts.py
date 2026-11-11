@@ -10,7 +10,9 @@ FUNCTIONS
     create_student / update_student
     create_lecturer / update_lecturer
     create_staff_admin        (Super Admin only: department admins, super admins)
-    set_status                activate / deactivate / suspend
+    set_status                activate / deactivate / suspend / unsuspend (Super Admin only)
+    unlock                    clear a lockout caused by wrong passwords
+    delete_user               permanently remove an account (Super Admin only)
     change_role               move staff between Lecturer / Dept Admin / Super Admin
     reset_password
 """
@@ -19,7 +21,8 @@ import re
 
 from ..extensions import db
 from ..models import (
-    AccountStatus, Department, LecturerProfile, Program, Role, StudentProfile, User,
+    AccountStatus, AuditLog, CourseAllocation, CourseRegistration, Department, LecturerProfile, Program,
+    ResultSheet, Role, StudentProfile, User,
 )
 from ..security.scope import can_access_department
 from . import audit
@@ -210,19 +213,94 @@ def create_staff_admin(actor: User, *, role, email, password, first_name, last_n
 # --------------------------------------------------------------------------- #
 #  Status, role and password
 # --------------------------------------------------------------------------- #
+STATUS_VERBS = {
+    AccountStatus.ACTIVE: "activated",
+    AccountStatus.INACTIVE: "deactivated",
+    AccountStatus.SUSPENDED: "suspended",
+}
+
+
 def set_status(actor: User, user: User, status: str) -> User:
+    """
+    Activate, deactivate, suspend or unsuspend an account.
+    Only the Super Admin may do this (department admins manage records, not
+    account access). Moving a suspended account back to active = "unsuspend".
+    """
+    if actor.role != Role.SUPER_ADMIN:
+        raise ServiceError("Only the Super Admin can activate, deactivate or suspend accounts.")
     if status not in set(AccountStatus):
         raise ServiceError("Unknown account status.")
     if user.id == actor.id:
         raise ServiceError("You cannot change the status of your own account.")
-    if not can_access_department(user.department_id, actor) or (
-        user.role in (Role.DEPT_ADMIN, Role.SUPER_ADMIN) and actor.role != Role.SUPER_ADMIN
-    ):
-        raise ServiceError("You are not allowed to change this account.")
     old = user.status
+    if old == status:
+        raise ServiceError(f"The account is already {status}.")
     user.status = status
-    audit.record(actor, "user.status_changed", f"{user.email}: status {old} → {status}", user)
+    if status == AccountStatus.ACTIVE:
+        user.failed_logins, user.locked_until = 0, None  # a fresh start
+    verb = "unsuspended" if old == AccountStatus.SUSPENDED and status == AccountStatus.ACTIVE else STATUS_VERBS[status]
+    audit.record(actor, "user.status_changed", f"{user.full_name} ({user.email}) {verb} (was {old})", user)
     return user
+
+
+def unlock(actor: User, user: User) -> User:
+    """Clear a temporary lock caused by too many wrong passwords."""
+    if actor.role != Role.SUPER_ADMIN:
+        raise ServiceError("Only the Super Admin can unlock accounts.")
+    user.failed_logins, user.locked_until = 0, None
+    audit.record(actor, "user.status_changed", f"{user.full_name} ({user.email}) unlocked after a lockout", user)
+    return user
+
+
+def _count(query) -> int:
+    return db.session.scalar(query) or 0
+
+
+def delete_user(actor: User, user: User) -> str:
+    """
+    Permanently delete an account. Returns a short summary for the message.
+
+    STUDENTS: their course registrations and scores are deleted with them.
+    STAFF: refused while their name is on teaching or approval records
+    (course allocations, result sheets); reassign those or deactivate the
+    account instead, so the history of who taught/approved stays correct.
+    Audit entries are kept: they keep the person's name, only the link to
+    the deleted account is removed.
+    """
+    if actor.role != Role.SUPER_ADMIN:
+        raise ServiceError("Only the Super Admin can delete accounts.")
+    if user.id == actor.id:
+        raise ServiceError("You cannot delete your own account.")
+
+    summary = user.full_name
+    if user.role == Role.STUDENT:
+        registrations = list(db.session.scalars(db.select(CourseRegistration).filter_by(student_id=user.id)))
+        entries = [r.result for r in registrations if r.result is not None]
+        for entry in entries:
+            db.session.delete(entry)
+        for registration in registrations:
+            db.session.delete(registration)
+        matric = user.student_profile.matric_number if user.student_profile else ""
+        summary = f"student {matric} ({user.full_name}): {len(registrations)} registration(s) and {len(entries)} result(s) removed"
+    else:
+        usage = {
+            "course allocation(s)": _count(db.select(db.func.count(CourseAllocation.id)).filter_by(lecturer_id=user.id)),
+            "result sheet(s) as lecturer": _count(db.select(db.func.count(ResultSheet.id)).filter_by(lecturer_id=user.id)),
+            "result review(s)": _count(db.select(db.func.count(ResultSheet.id)).filter_by(reviewed_by_id=user.id)),
+        }
+        used = [f"{n} {label}" for label, n in usage.items() if n]
+        if used:
+            raise ServiceError(f"{user.display_name} is named on {', '.join(used)}. Reassign those courses first, "
+                               "or deactivate the account instead so the academic history stays correct.")
+        summary = f"{user.role_label} {user.full_name} ({user.email})"
+
+    # Keep the audit history readable: copy the name onto old entries, then unlink.
+    db.session.execute(db.update(AuditLog).where(AuditLog.actor_id == user.id, AuditLog.actor_name.is_(None))
+                       .values(actor_name=user.display_name, actor_role=user.role))
+    db.session.execute(db.update(AuditLog).where(AuditLog.actor_id == user.id).values(actor_id=None))
+    audit.record(actor, "user.deleted", f"Deleted {summary}", user)
+    db.session.delete(user)
+    return summary
 
 
 STAFF_ROLES = (Role.LECTURER, Role.DEPT_ADMIN, Role.SUPER_ADMIN)

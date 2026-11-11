@@ -25,7 +25,7 @@ def _open_csc201(client):
 # --------------------------------------------------------------------------- #
 def test_lecturer_sees_registered_students(as_lecturer):
     allocation = allocation_for("CSC 201")
-    page = as_lecturer.get(f"/lecturer/courses/{allocation.id}").get_data(as_text=True)
+    page = as_lecturer.get(f"/lecturer/courses/{allocation.id}?tab=class-list").get_data(as_text=True)
     assert "CSC/2025/002" in page
 
 

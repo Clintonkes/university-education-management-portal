@@ -1,0 +1,63 @@
+{#
+  registration_view.html — One course registration.
+  Everyone with access sees the details; the Super Admin also gets an edit
+  form (course, type, remarks) and a delete button. A registration whose
+  scores are already recorded or locked cannot be moved or removed — the
+  service explains why.
+#}
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% set student = registration.student %}
+{% set p = student.student_profile %}
+{% block title %}Registration · {{ registration.course.code }}{% endblock %}
+{% block content %}
+{% call ui.page_head(registration.course.code ~ " · " ~ p.matric_number, student.full_name ~ " · " ~ registration.semester.name, "Course registration") %}
+  <a class="btn btn-light" href="{{ url_for('admin.registrations', semester_id=registration.semester_id) }}"><i class="bi bi-arrow-left me-1"></i>All registrations</a>
+  <a class="btn btn-light" href="{{ url_for('admin.students_view', user_id=student.id) }}"><i class="bi bi-person me-1"></i>Student record</a>
+{% endcall %}
+
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card mb-4">
+      <div class="card-header">Details</div>
+      <div class="card-body">
+        <table class="table table-borderless table-sm m-0 small">
+          <tr><td class="muted">Student</td><td>{{ student.full_name }} <span class="mono">({{ p.matric_number }})</span></td></tr>
+          <tr><td class="muted">Programme</td><td>{{ p.program.degree }} {{ p.program.name }} · {{ p.level }} Level</td></tr>
+          <tr><td class="muted">Course</td><td><strong>{{ registration.course.code }}</strong> — {{ registration.course.title }}</td></tr>
+          <tr><td class="muted">Units</td><td>{{ registration.course.units }}</td></tr>
+          <tr><td class="muted">Semester</td><td>{{ registration.semester.name }}</td></tr>
+          <tr><td class="muted">Type</td><td>{{ registration.type_label }}</td></tr>
+          <tr><td class="muted">Remarks</td><td>{{ registration.remarks or '—' }}</td></tr>
+          <tr><td class="muted">Registered</td><td>{{ registration.created_at | dt }}</td></tr>
+          <tr><td class="muted">Result</td><td>
+            {% if registration.result %}
+              {{ ui.status_badge(registration.result.sheet.status) }}
+              {% if registration.result.total is not none %}<span class="ms-2">Total {{ registration.result.total | score }} {{ ui.grade(registration.result.grade) }}</span>{% endif %}
+            {% else %}<span class="muted">No scores yet</span>{% endif %}</td></tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    {% if form %}
+    <div class="card mb-4">
+      <div class="card-header">Correct this registration</div>
+      <div class="card-body">
+        <form method="post" novalidate>
+          {{ form.hidden_tag() }}
+          <div class="row g-3">{{ ui.field(form.course_id) }}{{ ui.field(form.registration_type, "col-md-6") }}{{ ui.field(form.remarks) }}</div>
+          <button class="btn btn-primary mt-3"><i class="bi bi-check2 me-1"></i>Save changes</button>
+        </form>
+        <div class="small muted mt-3"><i class="bi bi-info-circle me-1"></i>Changing the course is only possible before scores are recorded. Every change is written to the audit trail.</div>
+      </div>
+    </div>
+    {{ ui.delete_card(url_for('admin.registrations_delete', registration_id=registration.id), "this registration",
+       "Removes " ~ registration.course.code ~ " from the student's courses for " ~ registration.semester.name ~ ". Not possible once scores are recorded.") }}
+    {% else %}
+    <div class="card"><div class="card-body small muted"><i class="bi bi-lock me-1"></i>Only the Super Admin can correct course registrations.</div></div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

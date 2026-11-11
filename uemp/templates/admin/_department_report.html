@@ -1,0 +1,107 @@
+{#
+  _department_report.html — The Department Report (included, not a page).
+
+  Expects `r` = services.reports.department_report(...) and `scope_name`.
+  Every figure has its formula listed in "How these numbers are calculated",
+  taken from reports.REPORT_FORMULAS so the explanation always matches the code.
+#}
+{% import "_macros.html" as ui %}
+{% macro kpi(value, label, formula, suffix="") %}
+<div class="card kpi"><div class="v">{{ value if value is not none else "—" }}{{ suffix if value is not none }}</div>
+  <div class="l">{{ label }}</div>{% if formula %}<div class="f">{{ formula }}</div>{% endif %}</div>
+{% endmacro %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
+  <div>
+    <div class="eyebrow">Department report</div>
+    <h2 class="h5 fw-bold m-0">{{ scope_name }}</h2>
+    <div class="small muted">{{ r.semester.name if r.semester else "No semester selected" }} · generated {{ now.strftime('%d %b %Y, %H:%M') }}</div>
+  </div>
+</div>
+
+<h3 class="h6 fw-bold mt-2 mb-2">1. People</h3>
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">{{ kpi(r.students, "Active students", "new this session: " ~ r.new_intake) }}</div>
+  <div class="col-6 col-lg-3">{{ kpi(r.lecturers, "Active lecturers") }}</div>
+  <div class="col-6 col-lg-3">{{ kpi(r.ratio, "Students per lecturer", "students ÷ lecturers") }}</div>
+  <div class="col-6 col-lg-3">{{ kpi(r.average_cgpa, "Average CGPA", "mean of students' CGPAs") }}</div>
+</div>
+<div class="row g-4 mb-4">
+  <div class="col-md-4"><div class="card h-100"><div class="card-header">Students by level</div><div class="card-body">
+    {{ ui.bars(r.by_level | map('list') | list) }}</div></div></div>
+  <div class="col-md-4"><div class="card h-100"><div class="card-header">Students by programme</div><div class="card-body">
+    {{ ui.bars(r.by_program) }}</div></div></div>
+  <div class="col-md-4"><div class="card h-100"><div class="card-header">Students by gender</div><div class="card-body">
+    {{ ui.bars(r.by_gender) }}</div></div></div>
+</div>
+
+{% if r.semester %}
+<h3 class="h6 fw-bold mb-2">2. Courses and registration · {{ r.semester.name }}</h3>
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">{{ kpi(r.offered, "Courses offered", r.allocated ~ " with a lecturer") }}</div>
+  <div class="col-6 col-lg-3">{{ kpi(r.coverage, "Allocation coverage", "allocated ÷ offered", "%") }}</div>
+  <div class="col-6 col-lg-3">{{ kpi(r.registration_rate, "Registration rate", r.registered_students ~ " of " ~ r.students ~ " students registered", "%") }}</div>
+  <div class="col-6 col-lg-3">{{ kpi(r.average_load, "Average units per student", r.registrations ~ " registrations, " ~ r.registered_units ~ " units") }}</div>
+</div>
+
+<h3 class="h6 fw-bold mb-2">3. Results and performance</h3>
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">{{ kpi(r.completion, "Result completion", r.sheet_status.get('approved', 0) ~ " of " ~ r.sheets ~ " sheets approved", "%") }}</div>
+  <div class="col-6 col-lg-3">{{ kpi(r.average_score, "Average score", "approved results only") }}</div>
+  <div class="col-6 col-lg-3">{{ kpi(r.pass_rate, "Pass rate", "grade above F", "%") }}</div>
+  <div class="col-6 col-lg-3">{{ kpi(r.average_gpa, "Average semester GPA", "mean of students' GPAs") }}</div>
+</div>
+<div class="row g-4 mb-4">
+  <div class="col-md-4"><div class="card h-100"><div class="card-header">Result sheets</div><div class="card-body">
+    {% for key in ['draft', 'submitted', 'returned', 'approved'] %}
+      <div class="d-flex justify-content-between py-1"><span>{{ ui.status_badge(key) }}</span><strong>{{ r.sheet_status.get(key, 0) }}</strong></div>
+    {% endfor %}
+    {% if r.corrections_pending %}<div class="small text-warning mt-2"><i class="bi bi-question-circle me-1"></i>{{ r.corrections_pending }} correction request(s) waiting</div>{% endif %}
+  </div></div></div>
+  <div class="col-md-4"><div class="card h-100"><div class="card-header">Grade distribution</div><div class="card-body">
+    {{ ui.bars(r.grades | dictsort | map('list') | list) }}</div></div></div>
+  <div class="col-md-4"><div class="card h-100"><div class="card-header">Semester GPA bands</div><div class="card-body">
+    {{ ui.bars(r.gpa_bands if r.average_gpa is not none else []) }}</div></div></div>
+</div>
+{% if r.best %}
+<div class="row g-4 mb-4">
+  <div class="col-md-6"><div class="card table-card h-100"><div class="card-header">Strongest courses (by average)</div>
+    <table class="table table-sm"><tbody>{% for row in r.best %}<tr><td class="fw-semibold">{{ row.sheet.course.code }}</td><td class="small">{{ row.sheet.course.title }}</td>
+      <td class="text-end">{{ row.average }}</td><td class="text-end small muted">{{ row.pass_rate }}% pass</td></tr>{% endfor %}</tbody></table></div></div>
+  {% if r.weakest %}
+  <div class="col-md-6"><div class="card table-card h-100"><div class="card-header">Courses needing attention</div>
+    <table class="table table-sm"><tbody>{% for row in r.weakest %}<tr><td class="fw-semibold">{{ row.sheet.course.code }}</td><td class="small">{{ row.sheet.course.title }}</td>
+      <td class="text-end">{{ row.average }}</td><td class="text-end small muted">{{ row.pass_rate }}% pass</td></tr>{% endfor %}</tbody></table></div></div>
+  {% endif %}
+</div>
+{% endif %}
+
+<h3 class="h6 fw-bold mb-2">4. Lecturer workload</h3>
+<div class="card table-card mb-4">
+  <div class="table-responsive"><table class="table table-sm">
+    <thead><tr><th>Lecturer</th><th>Courses</th><th class="text-center">Units</th><th class="text-center">Students</th><th>Result status</th></tr></thead>
+    <tbody>{% for w in r.workload %}
+      <tr><td>{{ w.lecturer.display_name }}</td><td class="small">{{ w.courses | map(attribute='code') | join(', ') or '—' }}</td>
+        <td class="text-center">{{ w.units }}</td><td class="text-center">{{ w.students }}</td>
+        <td>{% for st in w.statuses %}{{ ui.status_badge(st) }} {% endfor %}</td></tr>
+    {% else %}<tr><td colspan="5" class="muted small">No active lecturers.</td></tr>{% endfor %}</tbody>
+  </table></div>
+</div>
+{% endif %}
+
+<h3 class="h6 fw-bold mb-2">{{ 5 if r.semester else 2 }}. Academic standing (all approved results)</h3>
+<div class="row g-4 mb-4">
+  <div class="col-md-5"><div class="card h-100"><div class="card-header">CGPA bands</div><div class="card-body">{{ ui.bars(r.cgpa_bands) }}</div></div></div>
+  <div class="col-md-7"><div class="card table-card h-100"><div class="card-header">Students at risk <span class="muted fw-normal">CGPA below 1.50</span></div>
+    {% if r.at_risk %}
+    <table class="table table-sm"><tbody>{% for u, g in r.at_risk %}<tr><td class="mono">{{ u.student_profile.matric_number }}</td><td>{{ u.full_name }}</td>
+      <td class="text-center">{{ u.student_profile.level }}L</td><td class="text-end fw-semibold text-danger">{{ g | num }}</td></tr>{% endfor %}</tbody></table>
+    {% else %}{{ ui.empty("No students at risk", "", "emoji-smile") }}{% endif %}</div></div>
+</div>
+
+<div class="card"><div class="card-header">How these numbers are calculated</div><div class="card-body">
+  <dl class="formula-list row m-0">
+    {% for name, formula in r.formulas %}<div class="col-md-6"><dt>{{ name }}</dt><dd>{{ formula }}</dd></div>{% endfor %}
+  </dl>
+  <div class="small muted">Only APPROVED results are counted in scores, pass rates, GPA and CGPA. Registration figures follow the student's department; result figures follow the course's department.</div>
+</div></div>

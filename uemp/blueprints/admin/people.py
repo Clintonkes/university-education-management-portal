@@ -7,11 +7,16 @@ Super Admin: the same, for every department.
 
 Every page that opens ONE person calls `_load_person()`, which returns 403
 if the person belongs to a department the admin may not manage.
+
+Account ACCESS (activate / deactivate / suspend / unsuspend / unlock) and
+permanent DELETION are Super Admin only (Perm.ACCOUNTS_STATUS and
+Perm.RECORDS_DELETE). Department admins manage the records themselves.
 """
 
 from flask import abort, flash, redirect, render_template, request, url_for
 from flask_login import current_user
 from sqlalchemy import or_
+from sqlalchemy.orm import contains_eager, joinedload
 
 from ...extensions import db
 from ...models import (
@@ -52,6 +57,8 @@ def students():
     status = request.args.get("status", "")
 
     query = (db.select(User).join(User.student_profile).where(User.role == Role.STUDENT)
+             .options(contains_eager(User.student_profile).joinedload(StudentProfile.program),
+                      joinedload(User.department))
              .order_by(StudentProfile.matric_number))
     query = limit_to(query, User.department_id, department_filter())
     if search:
@@ -105,6 +112,15 @@ def students_view(user_id: int):
                            history=grading.academic_history(student.id), reset_form=PasswordResetForm())
 
 
+@bp.route("/students/<int:user_id>/academic-report")
+@permission_required(Perm.STUDENTS_MANAGE)
+def students_statement(user_id: int):
+    """The same printable academic report the student sees, for the admin."""
+    student = _load_person(user_id, Role.STUDENT)
+    return render_template("shared/academic_report.html", student=student,
+                           report=grading.academic_report(student.id))
+
+
 @bp.route("/students/<int:user_id>/edit", methods=["GET", "POST"])
 @permission_required(Perm.STUDENTS_MANAGE)
 def students_edit(user_id: int):
@@ -136,15 +152,23 @@ def students_edit(user_id: int):
 @permission_required(Perm.LECTURERS_MANAGE)
 def lecturers():
     search = request.args.get("q", "").strip()
+    status = request.args.get("status", "")
+    rank = request.args.get("rank", "")
     query = (db.select(User).join(User.lecturer_profile).where(User.role == Role.LECTURER)
+             .options(contains_eager(User.lecturer_profile), joinedload(User.department))
              .order_by(User.last_name))
     query = limit_to(query, User.department_id, department_filter())
     if search:
         like = f"%{search}%"
         query = query.where(or_(User.first_name.ilike(like), User.last_name.ilike(like),
                                 User.email.ilike(like), LecturerProfile.staff_id.ilike(like)))
+    if status:
+        query = query.where(User.status == status)
+    if rank:
+        query = query.where(LecturerProfile.rank == rank)
+    ranks = sorted({r for r in db.session.scalars(db.select(LecturerProfile.rank).distinct()) if r})
     page = db.paginate(query, per_page=20)
-    return render_template("admin/lecturers.html", page=page)
+    return render_template("admin/lecturers.html", page=page, statuses=list(AccountStatus), ranks=ranks)
 
 
 @bp.route("/lecturers/new", methods=["GET", "POST"])
@@ -202,13 +226,42 @@ def _back_to(user: User) -> str:
 
 
 @bp.route("/users/<int:user_id>/status", methods=["POST"])
-@permission_required(Perm.STUDENTS_MANAGE)
+@permission_required(Perm.ACCOUNTS_STATUS)
 def users_status(user_id: int):
+    """Super Admin: activate / deactivate / suspend / unsuspend an account."""
     user = get_or_404(User, user_id)
     status = request.form.get("status", "")
-    # The service checks the admin may change this account (department + role rules).
-    attempt(lambda: accounts.set_status(current_user, user, status), f"Account is now {status}.")
-    return redirect(_back_to(user))
+    labels = {"active": "active", "inactive": "deactivated", "suspended": "suspended"}
+    message = ("Account unsuspended — the person can sign in again." if user.status == "suspended" and status == "active"
+               else f"Account is now {labels.get(status, status)}.")
+    attempt(lambda: accounts.set_status(current_user, user, status), message)
+    return redirect(request.form.get("next") or _back_to(user))
+
+
+@bp.route("/users/<int:user_id>/unlock", methods=["POST"])
+@permission_required(Perm.ACCOUNTS_STATUS)
+def users_unlock(user_id: int):
+    user = get_or_404(User, user_id)
+    attempt(lambda: accounts.unlock(current_user, user), "Account unlocked.")
+    return redirect(request.form.get("next") or _back_to(user))
+
+
+@bp.route("/users/<int:user_id>/delete", methods=["POST"])
+@permission_required(Perm.RECORDS_DELETE)
+def users_delete(user_id: int):
+    """Super Admin: permanently delete a student, lecturer or administrator."""
+    user = get_or_404(User, user_id)
+    role = user.role
+    holder = {}
+
+    def delete():
+        holder["summary"] = accounts.delete_user(current_user, user)
+
+    if attempt(delete):
+        flash(f"Deleted {holder['summary']}.", "success")
+        target = {"student": "admin.students", "lecturer": "admin.lecturers"}.get(role, "superadmin.users")
+        return redirect(url_for(target))
+    return redirect(request.form.get("next") or _back_to(user))
 
 
 @bp.route("/users/<int:user_id>/password", methods=["POST"])

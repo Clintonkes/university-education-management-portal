@@ -126,6 +126,8 @@ class TestingConfig(BaseConfig):
     # TEST_DATABASE_URL to run the same tests against PostgreSQL (e.g. in CI).
     # WARNING: tests DROP every table in that database — never point it at real data.
     SQLALCHEMY_DATABASE_URI = normalise_db_url(os.environ.get("TEST_DATABASE_URL", "sqlite:///:memory:"))
+    # Tests load their own demo data; never auto-seed (whatever .env says).
+    AUTO_SEED = False
     # Forms in tests do not need a CSRF token.
     WTF_CSRF_ENABLED = False
     # A fast (weaker) hash keeps the test suite quick. NEVER use in production.
@@ -137,6 +139,9 @@ class ProductionConfig(BaseConfig):
     # Only send cookies over HTTPS in production.
     SESSION_COOKIE_SECURE = True
     REMEMBER_COOKIE_SECURE = True
+    # Browsers may keep CSS/JS for a year: every static URL carries ?v=<file
+    # version>, so a new deploy still loads the new files at once.
+    SEND_FILE_MAX_AGE_DEFAULT = 31_536_000
 
 
 CONFIGS = {

@@ -26,8 +26,10 @@ import os
 from datetime import datetime
 
 from flask import Flask, render_template, session
+from sqlalchemy import inspect
 
 from config import engine_options, get_config
+
 from .extensions import csrf, db, login_manager
 
 
@@ -80,16 +82,60 @@ def create_app(config_name: str | None = None, overrides: dict | None = None) ->
     from .cli import register_cli
     register_cli(app)
 
+    if not app.config.get("TESTING"):
+        _ensure_database_schema(app)
     if app.config.get("AUTO_SEED"):
         _auto_seed(app)
     return app
 
 
+def _ensure_database_schema(app: Flask) -> None:
+    """
+    Make sure the database matches the models before the app serves anyone:
+        1. create any missing tables;
+        2. add any missing columns to existing tables (see schema.py), so a
+           live database picks up new features without losing data;
+        3. stop with a clear error if anything is still missing.
+    Finally, close the connections used for this check. Gunicorn (--preload)
+    forks worker processes AFTER this runs, and a database connection must
+    never be shared between processes.
+    """
+    from .schema import missing_columns, upgrade_schema
+
+    with app.app_context():
+        try:
+            db.create_all()
+            added = upgrade_schema(db.engine, db.metadata)
+            if added:
+                app.logger.info("Database upgraded, added columns: %s", ", ".join(added))
+            expected_tables = set(db.metadata.tables)
+            actual_tables = set(inspect(db.engine).get_table_names())
+            missing_tables = sorted(expected_tables - actual_tables)
+            still_missing = missing_columns(db.engine, db.metadata)
+            if missing_tables or still_missing:
+                raise RuntimeError(
+                    "Database schema initialization failed; missing: "
+                    + ", ".join(missing_tables + [f"{t}.{c}" for t, c in still_missing])
+                )
+            app.logger.info("Database schema is ready (%d tables verified).", len(expected_tables))
+        finally:
+            db.session.remove()
+            _dispose_unless_in_memory()
+
+
+def _dispose_unless_in_memory() -> None:
+    """Close pooled connections (see above) — except for an in-memory SQLite
+    database, which only exists inside its one connection."""
+    if db.engine.url.get_backend_name() == "sqlite" and db.engine.url.database in (None, "", ":memory:"):
+        return
+    db.engine.dispose()
+
+
 def _auto_seed(app: Flask) -> None:
     """
-    Create tables and demo data on first start (only if there are no users yet).
+    Load demo data on first start (only if there are no users yet).
 
-    Run gunicorn with --preload so this happens ONCE, before worker processes
+    Run gunicorn with --preload so this happens once, before worker processes
     are started. If two processes still race, the loser's insert fails on the
     unique email column; we roll back and carry on, because the data exists.
     """
@@ -99,7 +145,6 @@ def _auto_seed(app: Flask) -> None:
 
     with app.app_context():
         try:
-            db.create_all()
             seed_demo_data()
         except IntegrityError:
             db.session.rollback()
@@ -108,7 +153,7 @@ def _auto_seed(app: Flask) -> None:
             db.session.remove()
             # Close pooled connections so forked workers open their own
             # (sharing a database connection between processes corrupts it).
-            db.engine.dispose()
+            _dispose_unless_in_memory()
 
 
 def _register_request_hooks(app: Flask) -> None:
@@ -133,6 +178,15 @@ def _register_error_pages(app: Flask) -> None:
     """Friendly pages instead of raw server errors."""
 
     def render(code: int, title: str, message: str):
+        from flask_login import current_user
+
+        # Signed-in users see the error inside the normal app frame (menu stays);
+        # visitors see a stand-alone page.
+        if current_user.is_authenticated:
+            try:
+                return render_template("errors/error_in_app.html", code=code, title=title, message=message), code
+            except Exception:  # the app frame itself failed (e.g. database down): use the plain page
+                db.session.rollback()
         return render_template("errors/error.html", code=code, title=title, message=message), code
 
     app.register_error_handler(400, lambda e: render(400, "Bad request", "The form was incomplete or has expired. Please try again."))
@@ -146,19 +200,40 @@ def _register_error_pages(app: Flask) -> None:
 
 
 def _register_template_helpers(app: Flask) -> None:
+    import os
+
+    @app.url_defaults
+    def _version_static_files(endpoint, values):
+        """url_for('static', filename='x.css') -> /static/x.css?v=<modified time> (cache busting)."""
+        if endpoint == "static" and "filename" in values and "v" not in values:
+            try:
+                values["v"] = int(os.stat(os.path.join(app.static_folder, values["filename"])).st_mtime)
+            except OSError:
+                pass
+
     from flask_login import current_user
 
     from .models import ResultStatus, Role, Semester
-    from .navigation import build_navigation
+    from .navigation import active_endpoint, build_navigation
     from .security import Perm, user_can
+
+    # Helpers that must also work inside imported macro files (_macros.html),
+    # which do not see per-page context variables.
+    app.jinja_env.globals.update(
+        can=lambda perm: user_can(current_user, perm),
+        Perm=Perm,
+        current_user=current_user,
+    )
 
     @app.context_processor
     def inject_globals():
         """Values available in every HTML template."""
         current_semester = Semester.current() if current_user.is_authenticated else None
+        navigation = build_navigation(current_user) if current_user.is_authenticated else []
         return {
             "current_semester": current_semester,
-            "navigation": build_navigation(current_user) if current_user.is_authenticated else [],
+            "navigation": navigation,
+            "active_nav": active_endpoint(navigation),
             "can": lambda perm: user_can(current_user, perm),
             "Perm": Perm,
             "Role": Role,

@@ -1,12 +1,35 @@
 {% extends "base.html" %}
 {% import "_macros.html" as ui %}
-{% block title %}Department dashboard{% endblock %}
+{% block title %}Department dashboard{% if report %}
+<div class="mt-5 pt-2 border-top">{% with r = report, scope_name = department.name ~ " Department" %}{% include "admin/_department_report.html" %}{% endwith %}</div>
+{% endif %}
+{% endblock %}
 {% block content %}
-{% call ui.page_head((current_user.department.name ~ " Department") if current_user.department and current_user.role == 'dept_admin' else "Department overview",
-                     semester.name if semester else "No current semester", "Department admin") %}
-  <form method="get">{{ ui.dept_filter(filter_departments) }}</form>
+{% call ui.page_head((department.name ~ " Department") if department else "All departments",
+                     (semester.name if semester else "No current semester") ~ (" · " ~ department.faculty.name if department else " · pick a department to see its dashboard and report"),
+                     "Department dashboard") %}
+  <form method="get" class="d-flex gap-2">{{ ui.dept_filter(filter_departments) }}</form>
+  {% if department %}<a class="btn btn-light" href="{{ url_for('admin.reports', tab='department', department_id=department.id if filter_departments else None) }}"><i class="bi bi-file-earmark-bar-graph me-1"></i>Full report</a>{% endif %}
   <a class="btn btn-primary" href="{{ url_for('admin.results') }}"><i class="bi bi-patch-check me-1"></i>Review results</a>
 {% endcall %}
+
+{% if comparison %}
+<div class="card table-card mb-4">
+  <div class="card-header"><span><i class="bi bi-diagram-2 me-2"></i>Departments at a glance</span><span class="small muted fw-normal">Click a department for its dashboard and full report</span></div>
+  <div class="table-responsive"><table class="table table-hover">
+    <thead><tr><th>Department</th><th class="text-center">Students</th><th class="text-center">Lecturers</th><th class="text-center">Registration rate</th>
+      <th class="text-center">Results approved</th><th class="text-center">Pass rate</th><th class="text-center">Avg. GPA</th><th class="text-center">At risk</th><th></th></tr></thead>
+    <tbody>{% for row in comparison %}
+      <tr><td class="fw-semibold">{{ row.department.name }}</td><td class="text-center">{{ row.students }}</td><td class="text-center">{{ row.lecturers }}</td>
+        <td class="text-center">{{ (row.registration_rate ~ '%') if row.registration_rate is not none else '—' }}</td>
+        <td class="text-center">{{ (row.completion ~ '%') if row.completion is not none else '—' }}</td>
+        <td class="text-center">{{ (row.pass_rate ~ '%') if row.pass_rate is not none else '—' }}</td>
+        <td class="text-center">{{ row.average_gpa if row.average_gpa is not none else '—' }}</td>
+        <td class="text-center {{ 'text-danger fw-semibold' if row.at_risk }}">{{ row.at_risk }}</td>
+        <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin.dashboard', department_id=row.department.id) }}">Open</a></td></tr>
+    {% endfor %}</tbody></table></div>
+</div>
+{% endif %}
 
 <div class="row g-3 mb-4">
   <div class="col-6 col-xl-3">{{ ui.stat("Active students", counts.students, "people", "green") }}</div>
@@ -26,7 +49,7 @@
 <div class="row g-4">
   <div class="col-lg-7">
     <div class="card table-card mb-4">
-      <div class="card-header"><span><i class="bi bi-hourglass-split me-2 text-warning"></i>Results awaiting review</span>
+      <div class="card-header"><span><i class="bi bi-hourglass-split me-2 text-warning"></i>Results awaiting review &amp; correction requests</span>
         <a href="{{ url_for('admin.results') }}" class="small">View all</a></div>
       {% if pending %}
       <div class="table-responsive">
@@ -35,7 +58,8 @@
         {% for s in pending %}
           <tr>
             <td><div class="fw-semibold">{{ s.course.code }}</div><div class="small muted">{{ s.course.title }}</div></td>
-            <td class="small">{{ s.lecturer.display_name }}<div class="muted">{{ s.entries | length }} students</div></td>
+            <td class="small">{{ s.lecturer.display_name }}<div class="muted">{{ s.entries | length }} students</div>
+              {% if s.correction_pending %}<span class="badge badge-soft st-pending">correction requested</span>{% endif %}</td>
             <td class="small muted">{{ s.submitted_at | dt }}</td>
             <td class="text-end"><a class="btn btn-sm btn-primary" href="{{ url_for('admin.results_review', sheet_id=s.id) }}">Review</a></td>
           </tr>
@@ -55,7 +79,7 @@
         <ul class="timeline">
           {% for a in activity %}
             <li><div class="small">{{ a.description }}</div>
-                <div class="small muted">{{ a.actor.display_name if a.actor else 'System' }} · {{ a.created_at | dt }}</div></li>
+                <div class="small muted">{{ a.who }} · {{ a.created_at | dt }}</div></li>
           {% endfor %}
         </ul>
         {% else %}<div class="muted small">No activity yet.</div>{% endif %}
@@ -95,4 +119,7 @@
     </div>
   </div>
 </div>
+{% if report %}
+<div class="mt-5 pt-2 border-top">{% with r = report, scope_name = department.name ~ " Department" %}{% include "admin/_department_report.html" %}{% endwith %}</div>
+{% endif %}
 {% endblock %}

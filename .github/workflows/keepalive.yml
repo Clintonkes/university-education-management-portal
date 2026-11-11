@@ -1,0 +1,46 @@
+# keepalive.yml — Keeps the free Render web service awake.
+#
+# Render's free plan puts a web service to sleep after 15 minutes without
+# traffic; the next visitor then waits about a minute while it starts again.
+# This job calls the app's /health page every 10 minutes so it stays awake.
+#
+# Setup (once): GitHub repo -> Settings -> Secrets and variables -> Actions ->
+# Variables -> New repository variable:  APP_URL = https://<your-app>.onrender.com
+# Without APP_URL the job does nothing.
+#
+# Notes:
+# - /health does not touch the database, so Neon can still sleep (saving its
+#   free compute hours); only the web server is kept warm.
+# - GitHub may delay scheduled jobs by a few minutes at busy times, and pauses
+#   schedules in repositories with no activity for 60 days. For a guaranteed
+#   5-minute check, also add a free UptimeRobot monitor (see docs/DEPLOYMENT.md).
+name: Keep Render awake
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping /health
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          if [ -z "$APP_URL" ]; then
+            echo "APP_URL repository variable is not set; nothing to ping."
+            exit 0
+          fi
+          # A sleeping service can take ~60 s to wake, so allow up to 3 tries of 90 s.
+          for attempt in 1 2 3; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 "${APP_URL%/}/health" || true)
+            echo "Attempt $attempt: HTTP $code"
+            [ "$code" = "200" ] && exit 0
+            sleep 10
+          done
+          echo "::warning::$APP_URL/health did not answer 200"

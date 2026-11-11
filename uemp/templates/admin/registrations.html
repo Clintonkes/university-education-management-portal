@@ -1,44 +1,70 @@
+{#
+  registrations.html — Which students registered which courses in a semester.
+  Filters apply as soon as they change (data-auto-filter, see app.js).
+  The course list only offers courses that were actually registered this
+  semester, including courses run by other departments.
+#}
 {% extends "base.html" %}
 {% import "_macros.html" as ui %}
 {% block title %}Registrations{% endblock %}
 {% block content %}
-{% call ui.page_head("Course registrations", "Which students registered which courses.", "Academics") %}
-  {% if semester %}<a class="btn btn-light" href="{{ url_for('admin.registrations_csv', **request.args) }}"><i class="bi bi-download me-1"></i>Export CSV</a>{% endif %}
+{% call ui.page_head("Course registrations", "Which students registered which courses. Open a row for details" ~ (" or to correct it." if can(Perm.REGISTRATIONS_EDIT) else "."), "Academics") %}
+  {% if semester %}<a class="btn btn-light" hx-boost="false" download href="{{ url_for('admin.registrations_csv', **request.args) }}"><i class="bi bi-download me-1"></i>Export CSV</a>{% endif %}
 {% endcall %}
+
+{% if semester %}
+<div class="row g-3 mb-3">
+  <div class="col-4">{{ ui.stat("Registrations", totals.registrations, "card-checklist", "violet") }}</div>
+  <div class="col-4">{{ ui.stat("Students", totals.students, "people", "blue") }}</div>
+  <div class="col-4">{{ ui.stat("Units", totals.units, "stack", "green") }}</div>
+</div>
+{% endif %}
+
 <div class="card table-card">
   <div class="card-header">
-    <form class="filter-bar w-100" method="get">
+    <form class="filter-bar w-100" method="get" data-auto-filter>
       {{ ui.semester_select(semesters, semester) }}
-      <input class="form-control" name="q" value="{{ request.args.get('q', '') }}" placeholder="Matric no. or name">
-      <select name="course_id" class="form-select"><option value="">All courses</option>
-        {% for id, label in courses %}<option value="{{ id }}" {{ 'selected' if request.args.get('course_id') == id|string }}>{{ label }}</option>{% endfor %}</select>
-      <select name="level" class="form-select"><option value="">All levels</option>
+      <input class="form-control" type="search" id="reg-search" name="q" value="{{ request.args.get('q', '') }}" placeholder="Matric no., name or course" aria-label="Search">
+      <select name="course_id" class="form-select" aria-label="Course"><option value="">All courses</option>
+        {% for c in courses %}<option value="{{ c.id }}" {{ 'selected' if request.args.get('course_id') == c.id|string }}>{{ c.code }} — {{ c.title }}</option>{% endfor %}</select>
+      <select name="program_id" class="form-select" aria-label="Programme"><option value="">All programmes</option>
+        {% for id, label in programs %}<option value="{{ id }}" {{ 'selected' if request.args.get('program_id') == id|string }}>{{ label }}</option>{% endfor %}</select>
+      <select name="level" class="form-select" aria-label="Level"><option value="">All levels</option>
         {% for lvl, label in levels %}<option value="{{ lvl }}" {{ 'selected' if request.args.get('level') == lvl|string }}>{{ label }}</option>{% endfor %}</select>
+      <select name="type" class="form-select" aria-label="Registration type"><option value="">Any type</option>
+        {% for key, label in types.items() %}<option value="{{ key }}" {{ 'selected' if request.args.get('type') == key }}>{{ label }}</option>{% endfor %}</select>
       {{ ui.dept_filter(filter_departments) }}
-      <button class="btn btn-outline-primary"><i class="bi bi-funnel"></i> Filter</button>
+      {% if request.args.get('q') or request.args.get('course_id') or request.args.get('program_id') or request.args.get('level') or request.args.get('type') or request.args.get('department_id') %}
+        <a class="btn btn-link" href="{{ url_for('admin.registrations', semester_id=semester.id if semester else None) }}">Clear filters</a>
+      {% endif %}
+      <noscript><button class="btn btn-outline-primary">Filter</button></noscript>
     </form>
   </div>
   {% if page and page.items %}
   <div class="table-responsive">
     <table class="table table-hover">
-      <thead><tr><th>Matric No.</th><th>Student</th><th class="text-center">Level</th><th>Course</th><th class="text-center">Units</th><th>Registered</th></tr></thead>
+      <thead><tr><th>Matric No.</th><th>Student</th><th class="text-center">Level</th><th>Course</th><th class="text-center">Units</th><th>Type</th><th>Registered</th><th></th></tr></thead>
       <tbody>
       {% for r in page.items %}
         <tr>
           <td class="mono">{{ r.student.student_profile.matric_number }}</td>
-          <td>{{ r.student.full_name }}</td>
+          <td>{{ r.student.full_name }}<div class="small muted">{{ r.student.student_profile.program.name }}</div></td>
           <td class="text-center">{{ r.student.student_profile.level }}</td>
           <td><span class="fw-semibold">{{ r.course.code }}</span> <span class="small muted">{{ r.course.title }}</span></td>
           <td class="text-center">{{ r.course.units }}</td>
+          <td class="small">{{ r.type_label }}{% if r.remarks %} <i class="bi bi-chat-left-text muted" title="{{ r.remarks }}"></i>{% endif %}</td>
           <td class="small muted">{{ r.created_at | dt }}</td>
+          <td class="text-end"><a class="btn btn-sm {{ 'btn-outline-primary' if can(Perm.REGISTRATIONS_EDIT) else 'btn-light' }}" href="{{ url_for('admin.registrations_view', registration_id=r.id) }}">{{ 'Edit' if can(Perm.REGISTRATIONS_EDIT) else 'View' }}</a></td>
         </tr>
       {% endfor %}
       </tbody>
     </table>
   </div>
   {{ ui.pager(page, 'admin.registrations') }}
+  {% elif not semester %}
+    {{ ui.empty("No semester yet", "The Super Admin needs to create a session first.", "calendar-x") }}
   {% else %}
-    {{ ui.empty("No registrations found", "", "card-checklist") }}
+    {{ ui.empty("No registrations found", "Try clearing a filter.", "card-checklist") }}
   {% endif %}
 </div>
 {% endblock %}

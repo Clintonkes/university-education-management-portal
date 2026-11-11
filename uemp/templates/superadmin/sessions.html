@@ -1,11 +1,29 @@
+{#
+  sessions.html — Academic calendar control (Super Admin).
+
+  Each SESSION card shows its status (Current / Upcoming / Completed) and a
+  "Session" menu: View activities, Edit, Mark completed / Reopen, Add a
+  missing semester, Delete (only when unused).
+
+  Each SEMESTER row shows status and registration state, the main next step
+  as a button (Make current → Open registration → Close → Mark completed),
+  and a "More" menu with View activities, Edit dates, Reopen and Delete.
+#}
 {% extends "base.html" %}
 {% import "_macros.html" as ui %}
 {% block title %}Sessions & semesters{% endblock %}
 {% block content %}
-{{ ui.page_head("Sessions & semesters", "Create academic sessions, choose the current semester and control course registration.", "University") }}
+{{ ui.page_head("Sessions & semesters", "Create sessions, choose the current semester, control registration and close finished periods. Click a session or semester to see everything that happened in it.", "University") }}
+
+{% macro action_form(url, action, label, css, icon, confirm=None, extra=None) %}
+<form method="post" action="{{ url }}" class="d-inline">{{ ui.csrf() }}<input type="hidden" name="action" value="{{ action }}">
+  {% if extra %}{% for k, v in extra.items() %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}{% endif %}
+  <button class="{{ css }}" {% if confirm %}data-confirm="{{ confirm }}"{% endif %}><i class="bi bi-{{ icon }} me-1"></i>{{ label }}</button></form>
+{% endmacro %}
+
 <div class="row g-4">
   <div class="col-lg-4">
-    <div class="card">
+    <div class="card mb-4">
       <div class="card-header">New session</div>
       <div class="card-body">
         <form method="post" novalidate>
@@ -16,43 +34,104 @@
         <div class="small muted mt-3">First and Second semesters are created automatically.</div>
       </div>
     </div>
+    <div class="card"><div class="card-body small muted">
+      <div class="fw-semibold text-dark mb-2">How the calendar works</div>
+      <ol class="ps-3 mb-0">
+        <li class="mb-1"><strong>Make current</strong> — the whole portal works in this semester.</li>
+        <li class="mb-1"><strong>Open registration</strong> — students can add and drop courses.</li>
+        <li class="mb-1"><strong>Close registration</strong> — the course list is frozen.</li>
+        <li class="mb-1"><strong>Mark completed</strong> — the semester is finished; registration can never reopen.</li>
+        <li><strong>Complete session</strong> — once both semesters are completed.</li>
+      </ol>
+      <div class="mt-2">Sessions and semesters can only be deleted while nothing has been recorded in them.</div>
+    </div></div>
   </div>
+
   <div class="col-lg-8">
+    <div class="chip-filter mb-3">
+      {% for key, label in [('all','All sessions'),('active','In progress / upcoming'),('completed','Completed')] %}
+        <a href="{{ url_for('superadmin.sessions', show=key) }}" class="{{ 'active' if show == key }}">{{ label }}</a>
+      {% endfor %}
+    </div>
+
     {% for s in sessions %}
+      {% set session_url = url_for('superadmin.sessions_action', session_id=s.id) %}
       <div class="card table-card mb-3">
-        <div class="card-header">
-          <span><i class="bi bi-calendar3 me-2"></i>{{ s.name }} {% if s.is_current %}<span class="badge badge-soft st-approved ms-1">current session</span>{% endif %}</span>
-          <span class="small muted fw-normal">{{ s.start_date | d }} – {{ s.end_date | d }}</span>
+        <div class="card-header flex-wrap">
+          <span>
+            <a class="text-decoration-none text-dark" href="{{ url_for('superadmin.sessions_view', session_id=s.id) }}"><i class="bi bi-calendar3 me-2"></i>{{ s.name }}</a>
+            <span class="badge badge-soft st-{{ s.status_label | lower }} ms-1">{{ s.status_label }}</span>
+            <span class="small muted fw-normal ms-1">{{ s.start_date | d }} – {{ s.end_date | d }}</span>
+          </span>
+          <div class="dropdown">
+            <button class="btn btn-sm btn-light dropdown-toggle" data-bs-toggle="dropdown">Session</button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+              <li><a class="dropdown-item" href="{{ url_for('superadmin.sessions_view', session_id=s.id) }}"><i class="bi bi-activity me-2"></i>View activities</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('superadmin.sessions_edit', session_id=s.id) }}"><i class="bi bi-pencil me-2"></i>Edit name &amp; dates</a></li>
+              {% for t in terms if t.value not in s.semesters | map(attribute='term') | list %}
+                <li>{{ action_form(session_url, "add_semester", "Add " ~ t.label, "dropdown-item", "plus-lg", extra={"term": t.value}) }}</li>
+              {% endfor %}
+              <li><hr class="dropdown-divider"></li>
+              {% if s.is_completed %}
+                <li>{{ action_form(session_url, "reopen", "Reopen session", "dropdown-item", "arrow-counterclockwise", "Reopen session " ~ s.name ~ "?") }}</li>
+              {% else %}
+                <li>{{ action_form(session_url, "complete", "Mark session completed", "dropdown-item", "calendar-check", "Mark the whole " ~ s.name ~ " session as completed? Both semesters must be completed first.") }}</li>
+              {% endif %}
+              <li>{{ action_form(session_url, "delete", "Delete session", "dropdown-item text-danger", "trash", "Delete session " ~ s.name ~ " and its semesters? Only possible if nothing was recorded in it.") }}</li>
+            </ul>
+          </div>
         </div>
         <div class="table-responsive">
         <table class="table">
           <tbody>
           {% for sem in s.semesters %}
+            {% set sem_url = url_for('superadmin.sessions_semester', semester_id=sem.id) %}
+            {% set used = usage[sem.id] %}
             <tr>
-              <td class="fw-semibold">{{ sem.term_label }}</td>
-              <td>{% if sem.is_current %}<span class="badge badge-soft st-approved">Current</span>{% endif %}
-                  <span class="badge badge-soft {{ 'st-approved' if sem.registration_open else 'st-draft' }}">Registration {{ 'open' if sem.registration_open else 'closed' }}</span></td>
-              <td class="text-end">
-                <form method="post" action="{{ url_for('superadmin.sessions_semester', semester_id=sem.id) }}" class="d-inline-flex flex-wrap justify-content-end gap-1">
-                  {{ ui.csrf() }}
-                  {% if not sem.is_current %}
-                    <button name="action" value="make_current" class="btn btn-sm btn-outline-primary" data-confirm="Make {{ sem.name }} the current semester for the whole university?">Make current</button>
-                  {% endif %}
-                  {% if sem.registration_open %}
-                    <button name="action" value="close" class="btn btn-sm btn-outline-danger">Close registration</button>
-                  {% elif sem.is_current %}
-                    <button name="action" value="open" class="btn btn-sm btn-primary">Open registration</button>
-                  {% endif %}
-                </form>
+              <td>
+                <a class="fw-semibold text-decoration-none" href="{{ url_for('superadmin.semesters_view', semester_id=sem.id) }}">{{ sem.term_label }}</a>
+                <div class="small muted">{{ sem.start_date | d }} – {{ sem.end_date | d }} · {{ used.registrations }} registrations · {{ used['result sheets'] }} result sheets</div>
+              </td>
+              <td class="text-nowrap">
+                <span class="badge badge-soft st-{{ sem.status_label | lower | replace(' ', '-') }}">{{ sem.status_label }}</span>
+                {% if not sem.is_completed %}<span class="badge badge-soft {{ 'st-approved' if sem.registration_open else 'st-draft' }}">Registration {{ 'open' if sem.registration_open else 'closed' }}</span>{% endif %}
+              </td>
+              <td class="text-end text-nowrap">
+                {# The one obvious next step for this semester #}
+                {% if sem.is_completed %}
+                  <a class="btn btn-sm btn-light" href="{{ url_for('superadmin.semesters_view', semester_id=sem.id) }}"><i class="bi bi-activity me-1"></i>Activities</a>
+                {% elif not sem.is_current %}
+                  {{ action_form(sem_url, "make_current", "Make current", "btn btn-sm btn-outline-primary", "calendar-event", "Make " ~ sem.name ~ " the current semester for the whole university?") }}
+                {% elif sem.registration_open %}
+                  {{ action_form(sem_url, "close", "Close registration", "btn btn-sm btn-outline-danger", "door-closed") }}
+                {% else %}
+                  {{ action_form(sem_url, "open", "Open registration", "btn btn-sm btn-primary", "door-open") }}
+                {% endif %}
+                <div class="dropdown d-inline-block">
+                  <button class="btn btn-sm btn-light" data-bs-toggle="dropdown" aria-label="More actions for {{ sem.name }}"><i class="bi bi-three-dots"></i></button>
+                  <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                    <li><a class="dropdown-item" href="{{ url_for('superadmin.semesters_view', semester_id=sem.id) }}"><i class="bi bi-activity me-2"></i>View activities</a></li>
+                    <li><a class="dropdown-item" href="{{ url_for('superadmin.semesters_edit', semester_id=sem.id) }}"><i class="bi bi-pencil me-2"></i>Edit dates</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    {% if sem.is_completed %}
+                      <li>{{ action_form(sem_url, "reopen", "Reopen semester", "dropdown-item", "arrow-counterclockwise", "Reopen " ~ sem.name ~ "?") }}</li>
+                    {% else %}
+                      <li>{{ action_form(sem_url, "complete", "Mark semester completed", "dropdown-item", "calendar-check", "Mark " ~ sem.name ~ " as completed? Registration closes and cannot be reopened.") }}</li>
+                    {% endif %}
+                    <li>{{ action_form(url_for('superadmin.semesters_delete', semester_id=sem.id), "delete", "Delete semester", "dropdown-item text-danger", "trash", "Delete " ~ sem.name ~ "? Only possible if nothing was recorded in it.") }}</li>
+                  </ul>
+                </div>
               </td>
             </tr>
+          {% else %}
+            <tr><td class="small muted">No semesters. Use the Session menu to add one.</td></tr>
           {% endfor %}
           </tbody>
         </table>
         </div>
       </div>
     {% else %}
-      <div class="card">{{ ui.empty("No sessions yet", "Create the first academic session.", "calendar-plus") }}</div>
+      <div class="card">{{ ui.empty("No sessions here", "Create an academic session to get started.", "calendar-plus") }}</div>
     {% endfor %}
   </div>
 </div>

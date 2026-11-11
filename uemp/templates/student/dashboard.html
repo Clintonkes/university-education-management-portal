@@ -56,8 +56,8 @@
       <div class="list-group list-group-flush">
         <a class="list-group-item list-group-item-action" href="{{ url_for('student.results') }}"><i class="bi bi-clipboard-data me-2"></i>Semester results</a>
         <a class="list-group-item list-group-item-action" href="{{ url_for('student.history') }}"><i class="bi bi-mortarboard me-2"></i>Academic history & CGPA</a>
-        {% if semester %}<a class="list-group-item list-group-item-action" href="{{ url_for('student.registration_slip', semester_id=semester.id) }}"><i class="bi bi-printer me-2"></i>Print registration slip</a>{% endif %}
-        <a class="list-group-item list-group-item-action" href="{{ url_for('student.statement') }}"><i class="bi bi-file-earmark-text me-2"></i>Statement of result</a>
+        {% if semester %}<a class="list-group-item list-group-item-action" target="_blank" rel="noopener" href="{{ url_for('student.registration_slip', semester_id=semester.id) }}"><i class="bi bi-printer me-2"></i>Print registration slip</a>{% endif %}
+        <a class="list-group-item list-group-item-action" target="_blank" rel="noopener" href="{{ url_for('student.statement') }}"><i class="bi bi-file-earmark-text me-2"></i>Statement of result</a>
         <a class="list-group-item list-group-item-action" href="{{ url_for('student.profile') }}"><i class="bi bi-person-vcard me-2"></i>Update my profile</a>
       </div>
     </div>

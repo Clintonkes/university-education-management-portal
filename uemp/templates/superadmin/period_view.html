@@ -1,0 +1,71 @@
+{#
+  period_view.html — Everything that happened in one semester, or in a whole
+  session (all its semesters): headline numbers, result sheets and the list
+  of activities from the audit trail, written in plain English.
+#}
+{% extends "base.html" %}
+{% import "_macros.html" as ui %}
+{% set title = semester.name if semester else "Session " ~ session.name %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+{% call ui.page_head(title, (semester.status_label if semester else session.status_label) ~ " · " ~ ((semester.start_date if semester else session.start_date) | d) ~ " – " ~ ((semester.end_date if semester else session.end_date) | d), "Activities") %}
+  <a class="btn btn-light" href="{{ url_for('superadmin.sessions') }}"><i class="bi bi-arrow-left me-1"></i>Sessions</a>
+  {% if semester %}
+    <a class="btn btn-light" href="{{ url_for('superadmin.sessions_view', session_id=session.id) }}"><i class="bi bi-calendar3 me-1"></i>Whole session</a>
+    <a class="btn btn-light" href="{{ url_for('superadmin.semesters_edit', semester_id=semester.id) }}"><i class="bi bi-pencil me-1"></i>Edit dates</a>
+  {% else %}
+    <a class="btn btn-light" href="{{ url_for('superadmin.sessions_edit', session_id=session.id) }}"><i class="bi bi-pencil me-1"></i>Edit session</a>
+  {% endif %}
+{% endcall %}
+
+{% macro activity_block(sem, a) %}
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3">{{ ui.stat("Students registered", a.students, "people", "blue") }}</div>
+  <div class="col-6 col-lg-3">{{ ui.stat("Course registrations", a.registrations, "card-checklist", "violet") }}</div>
+  <div class="col-6 col-lg-3">{{ ui.stat("Courses with a lecturer", a.allocations, "person-check", "green") }}</div>
+  <div class="col-6 col-lg-3">{{ ui.stat("Results approved", a.status_counts.get('approved', 0) ~ " / " ~ a.sheets | length, "patch-check", "gold") }}</div>
+</div>
+<div class="row g-4 mb-4">
+  <div class="col-md-5"><div class="card h-100"><div class="card-header">Registrations by department</div><div class="card-body">{{ ui.bars(a.per_department) }}</div></div></div>
+  <div class="col-md-7"><div class="card table-card h-100"><div class="card-header">Result sheets</div>
+    {% if a.sheets %}<div class="table-responsive"><table class="table table-sm"><tbody>
+      {% for sh in a.sheets %}<tr><td class="fw-semibold">{{ sh.course.code }}</td><td class="small">{{ sh.lecturer.display_name }}</td>
+        <td>{{ ui.status_badge(sh.status) }}</td><td class="text-end"><a class="small" href="{{ url_for('admin.results_review', sheet_id=sh.id) }}">Open</a></td></tr>{% endfor %}
+    </tbody></table></div>{% else %}{{ ui.empty("No result sheets", "", "patch-check") }}{% endif %}</div></div>
+</div>
+{% endmacro %}
+
+{% if semester %}
+  {{ activity_block(semester, activity) }}
+{% else %}
+  {% for sem, a in per_semester %}
+    <h2 class="h6 fw-bold mb-2"><a class="text-decoration-none" href="{{ url_for('superadmin.semesters_view', semester_id=sem.id) }}">{{ sem.term_label }}</a>
+      <span class="badge badge-soft st-{{ sem.status_label | lower | replace(' ', '-') }} ms-1">{{ sem.status_label }}</span></h2>
+    {{ activity_block(sem, a) }}
+  {% endfor %}
+{% endif %}
+
+<div class="card table-card">
+  <div class="card-header flex-wrap">
+    <span><i class="bi bi-clock-history me-2"></i>What happened <span class="muted fw-normal">· {{ log.total }} activities</span></span>
+    <div class="chip-filter">
+      <a href="{{ request.base_url }}" class="{{ 'active' if not request.args.get('category') }}">All</a>
+      {% for c in categories %}<a href="{{ request.base_url }}?category={{ c | urlencode }}" class="{{ 'active' if request.args.get('category') == c }}">{{ c }}</a>{% endfor %}
+    </div>
+  </div>
+  {% for a in log.items %}
+    {% set e = describe(a) %}
+    <div class="audit-item">
+      <div class="stat-icon tone-{{ e.tone }}"><i class="bi bi-{{ e.icon }}"></i></div>
+      <div class="flex-grow-1 min-w-0">
+        <div><span class="title">{{ e.title }}</span> <span class="small muted">by {{ e.who }}{% if e.who_role %} ({{ e.who_role }}){% endif %}</span></div>
+        <div class="details">{{ e.details }}</div>
+      </div>
+      <div class="small muted text-nowrap">{{ a.created_at | dt }}</div>
+    </div>
+  {% else %}
+    {{ ui.empty("Nothing recorded yet", "", "clock-history") }}
+  {% endfor %}
+  {{ ui.pager(log, request.endpoint) }}
+</div>
+{% endblock %}

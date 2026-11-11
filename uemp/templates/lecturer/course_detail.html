@@ -1,39 +1,140 @@
 {#
-  course_detail.html — Workflow 2 score sheet.
-  While the sheet is Draft/Returned the scores are input boxes; once
-  submitted or approved, they are read-only. Totals and grades preview live
-  in the browser (app.js) but the SERVER recalculates them when saving.
+  course_detail.html — Workflow 2, one course for the lecturer, in tabs:
+
+    Overview      status of the results, feedback from the department, key numbers
+    Class list    the students registered for the course (from the school's records)
+    Scores        enter or modify CA and exam scores, save as draft
+    Submit        final check, then submit the complete results for approval
+    Performance   course and student performance summary
+    Correction    after submitting, results are locked; ask the department for
+                  permission (authorisation) to edit them
+
+  While the sheet is Draft/Returned the scores are input boxes; once submitted
+  or approved they are read-only. Totals and grades preview live in the
+  browser (app.js) but the SERVER recalculates them when saving.
 #}
 {% extends "base.html" %}
 {% import "_macros.html" as ui %}
 {% set course = allocation.course %}
 {% set editable = sheet.status in ['draft', 'returned'] %}
+{% macro tab_url(t) %}{{ url_for('lecturer.courses_detail', allocation_id=allocation.id, tab=t) }}{% endmacro %}
 {% block title %}{{ course.code }}{% endblock %}
 {% block content %}
-{% call ui.page_head(course.code ~ " · " ~ course.title, allocation.semester.name ~ " · " ~ course.units ~ " units · " ~ course.level ~ " Level", "Score sheet") %}
-  <a class="btn btn-light" href="{{ url_for('lecturer.courses_csv', allocation_id=allocation.id) }}"><i class="bi bi-download me-1"></i>Class list (CSV)</a>
-  <a class="btn btn-light" href="{{ url_for('lecturer.courses_print', allocation_id=allocation.id) }}"><i class="bi bi-printer me-1"></i>Print</a>
+{% call ui.page_head(course.code ~ " · " ~ course.title, allocation.semester.name ~ " · " ~ course.units ~ " units · " ~ course.level ~ " Level", "My course") %}
+  <a class="btn btn-light" href="{{ url_for('lecturer.courses') }}"><i class="bi bi-arrow-left me-1"></i>My courses</a>
 {% endcall %}
 
-<div class="row g-3 mb-4">
-  <div class="col-6 col-lg-3"><div class="card"><div class="stat"><div class="stat-icon tone-slate"><i class="bi bi-flag"></i></div>
-    <div><div class="mb-1">{{ ui.status_badge(sheet.status) }}</div><div class="stat-label">Result status</div></div></div></div></div>
-  <div class="col-6 col-lg-3">{{ ui.stat("Students", summary.students, "people", "blue") }}</div>
-  <div class="col-6 col-lg-3">{{ ui.stat("Class average", summary.average if summary.average is not none else "—", "bar-chart", "green") }}</div>
-  <div class="col-6 col-lg-3">{{ ui.stat("Pass rate", (summary.pass_rate ~ "%") if summary.pass_rate is not none else "—", "check2-circle", "gold") }}</div>
-</div>
+<nav class="page-tabs" aria-label="Course sections">
+  {% for key, label, icon in [('overview','Overview','speedometer2'),('class-list','Class list','people'),
+                              ('scores', 'Enter scores' if editable else 'Scores','pencil-square'),('submit','Submit','send'),
+                              ('performance','Performance','graph-up'),('correction','Request correction','unlock')] %}
+    <a href="{{ url_for('lecturer.courses_detail', allocation_id=allocation.id, tab=key) }}" class="{{ 'active' if tab == key }}">
+      <i class="bi bi-{{ icon }}"></i>{{ label }}
+      {% if key == 'class-list' %}<span class="count">{{ summary.students }}</span>{% endif %}
+      {% if key == 'scores' and editable and summary.missing %}<span class="count warn">{{ summary.missing }} to do</span>{% endif %}
+      {% if key == 'correction' and sheet.correction_pending %}<span class="count warn">pending</span>{% endif %}
+    </a>
+  {% endfor %}
+</nav>
 
+{# ---- Status banner, shown on every tab --------------------------------- #}
 {% if sheet.status == 'returned' and sheet.review_comment %}
   <div class="alert alert-danger"><strong><i class="bi bi-chat-left-text me-1"></i>Feedback from {{ sheet.reviewed_by.display_name if sheet.reviewed_by else 'the department' }}:</strong> {{ sheet.review_comment }}</div>
 {% elif sheet.status == 'submitted' %}
-  <div class="alert alert-warning"><i class="bi bi-hourglass-split me-1"></i>Submitted {{ sheet.submitted_at | dt }}. Results are locked while the department reviews them.</div>
+  <div class="alert alert-warning"><i class="bi bi-hourglass-split me-1"></i>Submitted {{ sheet.submitted_at | dt }}. Results are locked while the department reviews them.
+    {% if not sheet.correction_pending %}Need to change something? <a href="{{ tab_url('correction') }}">Request a correction</a>.{% endif %}</div>
 {% elif sheet.status == 'approved' %}
   <div class="alert alert-success"><i class="bi bi-patch-check me-1"></i>Approved {{ sheet.reviewed_at | dt }}{% if sheet.reviewed_by %} by {{ sheet.reviewed_by.display_name }}{% endif %}. Students can now see these results.</div>
 {% endif %}
+{% if sheet.correction_pending %}
+  <div class="alert alert-info"><i class="bi bi-question-circle me-1"></i>You asked to correct these results on {{ sheet.correction_requested_at | dt }}. Waiting for the department's decision.</div>
+{% elif sheet.review_comment and sheet.review_comment.startswith('Correction request refused') %}
+  <div class="alert alert-secondary"><i class="bi bi-x-circle me-1"></i>{{ sheet.review_comment }}</div>
+{% endif %}
 
+{# ======================================================================= #}
+{% if tab == 'overview' %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3"><div class="card"><div class="stat"><div class="stat-icon tone-slate"><i class="bi bi-flag"></i></div>
+    <div><div class="mb-1">{{ ui.status_badge(sheet.status) }}</div><div class="stat-label">Submission status</div></div></div></div></div>
+  <div class="col-6 col-lg-3">{{ ui.stat("Students", summary.students, "people", "blue") }}</div>
+  <div class="col-6 col-lg-3">{{ ui.stat("Scores entered", summary.scored ~ " / " ~ summary.students, "pencil-square", "violet") }}</div>
+  <div class="col-6 col-lg-3">{{ ui.stat("Pass rate", (summary.pass_rate ~ "%") if summary.pass_rate is not none else "—", "check2-circle", "gold") }}</div>
+</div>
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">What to do next</div>
+      <div class="list-group list-group-flush">
+        {% if editable %}
+          <a class="list-group-item list-group-item-action d-flex gap-3" href="{{ tab_url('scores') }}"><i class="bi bi-pencil-square fs-5 text-success"></i>
+            <div><div class="fw-semibold">{{ 'Enter' if not summary.scored else 'Finish entering' }} scores</div><div class="small muted">{{ summary.missing }} student(s) still need both CA and exam scores.</div></div></a>
+          <a class="list-group-item list-group-item-action d-flex gap-3" href="{{ tab_url('submit') }}"><i class="bi bi-send fs-5 text-primary"></i>
+            <div><div class="fw-semibold">Submit for approval</div><div class="small muted">When every score is in, send the results to your department.</div></div></a>
+        {% elif sheet.status == 'submitted' %}
+          <div class="list-group-item d-flex gap-3"><i class="bi bi-hourglass-split fs-5 text-warning"></i>
+            <div><div class="fw-semibold">Waiting for your department</div><div class="small muted">You will see their decision and any feedback here.</div></div></div>
+        {% else %}
+          <div class="list-group-item d-flex gap-3"><i class="bi bi-check2-all fs-5 text-success"></i>
+            <div><div class="fw-semibold">Nothing to do</div><div class="small muted">These results are final and visible to students.</div></div></div>
+        {% endif %}
+        <a class="list-group-item list-group-item-action d-flex gap-3" href="{{ tab_url('class-list') }}"><i class="bi bi-people fs-5 text-info"></i>
+          <div><div class="fw-semibold">View the class list</div><div class="small muted">{{ summary.students }} registered student(s), with download and print.</div></div></a>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header">Submission history &amp; feedback</div>
+      <div class="card-body">
+        {% if trail %}
+        <ul class="timeline">
+          {% for a in trail %}
+            <li><div class="small fw-semibold">{{ a.action.replace('result.', '').replace('_', ' ') | capitalize }}</div>
+              <div class="small">{{ a.description | truncate(140) }}</div>
+              <div class="small muted">{{ a.who }} · {{ a.created_at | dt }}</div></li>
+          {% endfor %}
+        </ul>
+        {% else %}<div class="small muted">Nothing yet. Save a draft to get started.</div>{% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{# ======================================================================= #}
+{% elif tab == 'class-list' %}
 <div class="card table-card">
   <div class="card-header">
-    <span>Class list & scores</span>
+    <span>Class list <span class="muted fw-normal">· {{ entries | length }} students registered</span></span>
+    <span class="d-flex gap-2">
+      <a class="btn btn-sm btn-light" hx-boost="false" download href="{{ url_for('lecturer.courses_csv', allocation_id=allocation.id) }}"><i class="bi bi-download me-1"></i>CSV</a>
+      <a class="btn btn-sm btn-light" target="_blank" rel="noopener" href="{{ url_for('lecturer.courses_print', allocation_id=allocation.id) }}"><i class="bi bi-printer me-1"></i>Print</a>
+    </span>
+  </div>
+  {% if entries %}
+  <div class="table-responsive">
+    <table class="table table-hover">
+      <thead><tr><th>#</th><th>Matric No.</th><th>Student</th><th>Programme</th><th class="text-center">Level</th><th>Email</th><th>Registered</th></tr></thead>
+      <tbody>
+      {% for e in entries %}
+        {% set st = e.registration.student %}
+        <tr><td class="muted">{{ loop.index }}</td><td class="mono">{{ st.student_profile.matric_number }}</td><td>{{ st.full_name }}</td>
+          <td class="small">{{ st.student_profile.program.name }}</td><td class="text-center">{{ st.student_profile.level }}</td>
+          <td class="small">{{ st.email }}</td><td class="small muted">{{ e.registration.created_at | d }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+    {{ ui.empty("No students registered", "Students who register this course will appear here automatically.", "people") }}
+  {% endif %}
+</div>
+
+{# ======================================================================= #}
+{% elif tab == 'scores' %}
+<div class="card table-card">
+  <div class="card-header">
+    <span>{{ 'Enter or modify scores' if editable else 'Scores (locked)' }}</span>
     <span class="small muted fw-normal">CA max {{ max_ca }} · Exam max {{ max_exam }} · Total 100</span>
   </div>
   {% if entries %}
@@ -64,14 +165,134 @@
     </div>
     {% if editable %}
     <div class="sticky-actions d-flex flex-wrap gap-2 align-items-center">
-      <span class="small muted me-auto"><i class="bi bi-info-circle me-1"></i>Save a draft any time. Submitting locks the sheet and sends it to your department.</span>
+      <span class="small muted me-auto"><i class="bi bi-info-circle me-1"></i>Save as often as you like. Nothing is sent to the department until you submit.</span>
       <button name="action" value="save" class="btn btn-outline-primary"><i class="bi bi-save me-1"></i>Save draft</button>
-      <button name="action" value="submit" class="btn btn-primary" data-confirm="Submit {{ course.code }} results for approval? You will not be able to edit them afterwards."><i class="bi bi-send me-1"></i>Submit for approval</button>
+      <button name="action" value="submit" class="btn btn-primary" data-confirm="Submit {{ course.code }} results for approval? You will not be able to edit them afterwards without the department's permission."><i class="bi bi-send me-1"></i>Submit for approval</button>
     </div>
     {% endif %}
   </form>
+  {% if not editable %}
+    <div class="p-3 border-top small muted"><i class="bi bi-lock me-1"></i>These results are locked. To change them, <a href="{{ tab_url('correction') }}">request a correction</a>.</div>
+  {% endif %}
   {% else %}
     {{ ui.empty("No students registered", "Students who register this course will appear here automatically.", "people") }}
   {% endif %}
 </div>
+
+{# ======================================================================= #}
+{% elif tab == 'submit' %}
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">Submit the complete results</div>
+      <div class="card-body">
+        {% if editable %}
+          <ul class="list-unstyled mb-4">
+            <li class="mb-2"><i class="bi bi-{{ 'check-circle-fill text-success' if entries else 'x-circle-fill text-danger' }} me-2"></i>{{ entries | length }} student(s) on the class list</li>
+            <li class="mb-2"><i class="bi bi-{{ 'check-circle-fill text-success' if entries and not summary.missing else 'x-circle-fill text-danger' }} me-2"></i>
+              {% if summary.missing %}{{ summary.missing }} student(s) still missing a CA or exam score — <a href="{{ tab_url('scores') }}">enter them</a>{% else %}Every student has both scores{% endif %}</li>
+            <li><i class="bi bi-info-circle text-primary me-2"></i>After submitting, the results are locked until your department approves them or allows a correction.</li>
+          </ul>
+          <form method="post" action="{{ url_for('lecturer.courses_scores', allocation_id=allocation.id) }}">
+            {{ ui.csrf() }}
+            <button name="action" value="submit" class="btn btn-primary" {{ 'disabled' if summary.missing or not entries }}
+                    data-confirm="Submit {{ course.code }} results for approval? You will not be able to edit them afterwards without the department's permission.">
+              <i class="bi bi-send me-1"></i>Submit {{ entries | length }} results for approval</button>
+          </form>
+        {% elif sheet.status == 'submitted' %}
+          <p class="mb-0"><i class="bi bi-hourglass-split text-warning me-1"></i>Already submitted on {{ sheet.submitted_at | dt }}. Waiting for the department.</p>
+        {% else %}
+          <p class="mb-0"><i class="bi bi-patch-check text-success me-1"></i>Approved on {{ sheet.reviewed_at | dt }}. Nothing more to submit.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card"><div class="card-header">Submission status</div><div class="card-body">
+      <div class="mb-2">{{ ui.status_badge(sheet.status) }}</div>
+      <table class="table table-borderless table-sm small m-0">
+        <tr><td class="muted">Submitted</td><td>{{ sheet.submitted_at | dt }}</td></tr>
+        <tr><td class="muted">Reviewed</td><td>{{ sheet.reviewed_at | dt }}{% if sheet.reviewed_by %} by {{ sheet.reviewed_by.display_name }}{% endif %}</td></tr>
+        <tr><td class="muted">Feedback</td><td>{{ sheet.review_comment or '—' }}</td></tr>
+      </table>
+    </div></div>
+  </div>
+</div>
+
+{# ======================================================================= #}
+{% elif tab == 'performance' %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-lg-3">{{ ui.stat("Class average", summary.average if summary.average is not none else "—", "bar-chart", "green") }}</div>
+  <div class="col-6 col-lg-3">{{ ui.stat("Median", summary.median if summary.median is not none else "—", "distribute-vertical", "blue") }}</div>
+  <div class="col-6 col-lg-3">{{ ui.stat("Highest / lowest", (summary.highest|score ~ " / " ~ summary.lowest|score) if summary.highest is not none else "—", "arrow-down-up", "violet") }}</div>
+  <div class="col-6 col-lg-3">{{ ui.stat("Passed / failed", summary.passed ~ " / " ~ summary.failed, "check2-circle", "gold", (summary.pass_rate ~ "% pass rate") if summary.pass_rate is not none else None) }}</div>
+</div>
+{% if summary.scored %}
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card mb-4"><div class="card-header">Grade distribution</div><div class="card-body">
+      {% set pairs = [] %}{% for minimum, g, p in config.GRADING_SCALE %}{% set _ = pairs.append((g, summary.grades.get(g, 0))) %}{% endfor %}
+      {{ ui.bars(pairs) }}</div></div>
+    {% if summary.by_level | length > 1 %}
+    <div class="card"><div class="card-header">Average by level</div><div class="card-body">
+      {{ ui.bars(summary.by_level.items() | map('list') | list) }}</div></div>
+    {% endif %}
+  </div>
+  <div class="col-lg-7">
+    <div class="card table-card mb-4"><div class="card-header">Top students</div>
+      <table class="table table-sm"><tbody>{% for e in summary.top %}
+        <tr><td class="mono">{{ e.registration.student.student_profile.matric_number }}</td><td>{{ e.registration.student.full_name }}</td>
+          <td class="text-center fw-semibold">{{ e.total | score }}</td><td class="text-center">{{ ui.grade(e.grade) }}</td></tr>{% endfor %}</tbody></table></div>
+    {% if summary.bottom %}
+    <div class="card table-card"><div class="card-header">Students who may need support</div>
+      <table class="table table-sm"><tbody>{% for e in summary.bottom %}
+        <tr><td class="mono">{{ e.registration.student.student_profile.matric_number }}</td><td>{{ e.registration.student.full_name }}</td>
+          <td class="text-center fw-semibold">{{ e.total | score }}</td><td class="text-center">{{ ui.grade(e.grade) }}</td></tr>{% endfor %}</tbody></table></div>
+    {% endif %}
+  </div>
+</div>
+<p class="small muted mt-3"><i class="bi bi-info-circle me-1"></i>Average = sum of totals ÷ students scored. Pass rate = students with a grade above F ÷ students scored × 100.{% if summary.spread is not none %} Spread (standard deviation) = {{ summary.spread }}: a small number means most students scored close to the average.{% endif %}</p>
+{% else %}
+  <div class="card">{{ ui.empty("No scores yet", "Performance appears once scores are entered.", "graph-up") }}</div>
+{% endif %}
+
+{# ======================================================================= #}
+{% elif tab == 'correction' %}
+<div class="row g-4">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">Request permission to correct results</div>
+      <div class="card-body">
+        {% if editable %}
+          <p class="mb-0"><i class="bi bi-unlock text-success me-1"></i>These results are not locked — you can <a href="{{ tab_url('scores') }}">edit them now</a>. No permission is needed.</p>
+        {% elif sheet.correction_pending %}
+          <p><i class="bi bi-hourglass-split text-warning me-1"></i>Request sent on {{ sheet.correction_requested_at | dt }}:</p>
+          <blockquote class="border-start border-3 ps-3 small">{{ sheet.correction_reason }}</blockquote>
+          <p class="small muted mb-0">Your department admin will allow or refuse it. If allowed, the results open again for editing.</p>
+        {% else %}
+          <p class="small muted">Once submitted, results are locked so they cannot be changed without authorisation. Explain what needs correcting; your department admin will review the request.</p>
+          <form method="post" action="{{ url_for('lecturer.courses_correction', allocation_id=allocation.id) }}">
+            {{ ui.csrf() }}
+            <label class="form-label fw-medium" for="reason">What needs to be corrected, and why?</label>
+            <textarea class="form-control mb-3" id="reason" name="reason" rows="4" required minlength="10"
+                      placeholder="e.g. The exam score for CSC/2025/004 was entered as 35 instead of 53."></textarea>
+            <button class="btn btn-primary"><i class="bi bi-send me-1"></i>Send request to department</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-5">
+    <div class="card"><div class="card-body small muted">
+      <div class="fw-semibold text-dark mb-1">How authorisation works</div>
+      <ol class="ps-3 mb-0">
+        <li>You send a request with the reason.</li>
+        <li>Your department admin sees it on the result review page.</li>
+        <li>If allowed, the results return to you as “Returned for correction”.</li>
+        <li>You correct the scores and submit again. Every change is recorded.</li>
+      </ol>
+    </div></div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}

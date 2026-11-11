@@ -41,6 +41,9 @@ class ResultSheet(TimestampMixin, db.Model):
     reviewed_at: Mapped[datetime | None] = mapped_column(db.DateTime)
     # Feedback from the department admin when rejecting / reopening.
     review_comment: Mapped[str | None] = mapped_column(db.Text)
+    # A lecturer may ask permission to correct results after submitting them.
+    correction_requested_at: Mapped[datetime | None] = mapped_column(db.DateTime)
+    correction_reason: Mapped[str | None] = mapped_column(db.Text)
 
     course: Mapped[Course] = relationship()
     semester: Mapped[Semester] = relationship()
@@ -53,6 +56,11 @@ class ResultSheet(TimestampMixin, db.Model):
     @property
     def status_enum(self) -> ResultStatus:
         return ResultStatus(self.status)
+
+    @property
+    def correction_pending(self) -> bool:
+        """True while a lecturer's request to edit locked results awaits a decision."""
+        return self.correction_requested_at is not None
 
 
 class ResultEntry(TimestampMixin, db.Model):

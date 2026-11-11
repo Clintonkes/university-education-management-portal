@@ -3,7 +3,7 @@
 {% block title %}Academic history{% endblock %}
 {% block content %}
 {% call ui.page_head("Academic history", "Every approved semester, with GPA and cumulative GPA (CGPA).", "Academics") %}
-  <a class="btn btn-primary" href="{{ url_for('student.statement') }}"><i class="bi bi-printer me-1"></i>Print statement of result</a>
+  <a class="btn btn-primary" target="_blank" rel="noopener" href="{{ url_for('student.statement') }}"><i class="bi bi-printer me-1"></i>Print statement of result</a>
 {% endcall %}
 
 <div class="row g-3 mb-4">

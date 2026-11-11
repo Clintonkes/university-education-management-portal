@@ -1,0 +1,15 @@
+{# error_in_app.html — The same friendly error, shown inside the app frame for signed-in users,
+   so the menu stays available and fast navigation keeps working. #}
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<div class="text-center mx-auto py-5" style="max-width: 460px">
+  <div class="stat-icon tone-{{ 'rose' if code == 403 else 'gold' }} mx-auto mb-3" style="width:64px;height:64px;font-size:1.8rem">
+    <i class="bi bi-{{ 'shield-lock' if code == 403 else 'signpost-split' if code == 404 else 'exclamation-triangle' }}"></i>
+  </div>
+  <div class="eyebrow">Error {{ code }}</div>
+  <h1 class="h3 fw-bold mt-1">{{ title }}</h1>
+  <p class="muted">{{ message }}</p>
+  <a href="{{ url_for('main.home') }}" class="btn btn-primary mt-2"><i class="bi bi-house me-1"></i> Go to my dashboard</a>
+</div>
+{% endblock %}

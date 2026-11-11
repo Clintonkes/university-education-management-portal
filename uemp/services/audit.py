@@ -27,6 +27,8 @@ def record(actor, action: str, description: str, entity=None) -> AuditLog:
     """Add one audit entry to the current transaction."""
     entry = AuditLog(
         actor_id=getattr(actor, "id", None),
+        actor_name=getattr(actor, "display_name", None),
+        actor_role=getattr(actor, "role", None),
         action=action,
         description=description,
         entity_type=type(entity).__name__ if entity is not None else None,

@@ -45,6 +45,9 @@ class Perm:
     DEPARTMENTS_MANAGE = "departments.manage"
     SESSIONS_MANAGE = "sessions.manage"
     USERS_MANAGE_ALL = "users.manage_all"
+    ACCOUNTS_STATUS = "accounts.status"
+    RECORDS_DELETE = "records.delete"
+    REGISTRATIONS_EDIT = "registrations.edit"
     ROLES_MANAGE = "roles.manage"
     AUDIT_VIEW = "audit.view"
 
@@ -59,7 +62,7 @@ PERMISSION_DESCRIPTIONS = {
     Perm.LECTURERS_MANAGE: "Create and update lecturer profiles",
     Perm.COURSES_MANAGE: "Create and update courses",
     Perm.ALLOCATIONS_MANAGE: "Assign lecturers to courses",
-    Perm.PROGRAMS_MANAGE: "Create and update academic programmes",
+    Perm.PROGRAMS_MANAGE: "Create, update and delete academic programmes",
     Perm.REGISTRATIONS_VIEW: "View student course registrations",
     Perm.RESULTS_REVIEW: "Approve, reject or reopen submitted results",
     Perm.REPORTS_VIEW: "View student, registration and performance reports",
@@ -68,6 +71,9 @@ PERMISSION_DESCRIPTIONS = {
     Perm.DEPARTMENTS_MANAGE: "Create and update departments",
     Perm.SESSIONS_MANAGE: "Create sessions/semesters and control registration",
     Perm.USERS_MANAGE_ALL: "Manage every account and its status",
+    Perm.ACCOUNTS_STATUS: "Activate, deactivate, suspend, unsuspend or unlock accounts",
+    Perm.RECORDS_DELETE: "Permanently delete faculties, departments, students and lecturers",
+    Perm.REGISTRATIONS_EDIT: "Edit or remove a student's course registration",
     Perm.ROLES_MANAGE: "Change a staff member's role",
     Perm.AUDIT_VIEW: "Read the system audit trail",
 }
@@ -87,6 +93,7 @@ ROLE_PERMISSIONS: dict[Role, frozenset[str]] = {
         _MANAGEMENT | {
             Perm.UNIVERSITY_DASHBOARD, Perm.FACULTIES_MANAGE, Perm.DEPARTMENTS_MANAGE,
             Perm.SESSIONS_MANAGE, Perm.USERS_MANAGE_ALL, Perm.ROLES_MANAGE, Perm.AUDIT_VIEW,
+            Perm.ACCOUNTS_STATUS, Perm.RECORDS_DELETE, Perm.REGISTRATIONS_EDIT,
         }
     ),
 }

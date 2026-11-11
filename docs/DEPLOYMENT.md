@@ -113,9 +113,9 @@ Keep `?sslmode=require` on the end of the URL; Neon only accepts encrypted conne
    - Installs the packages (`pip install -r requirements.txt`).
    - Generates a random `SECRET_KEY`.
    - Starts `gunicorn run:app --preload --workers 2 --timeout 60 --bind 0.0.0.0:$PORT`.
-   - On first start, creates all tables in Neon and loads the demo data, because `AUTO_SEED=1`.
+   - On first start, creates any missing application tables in Neon and verifies that all model tables exist. It does not insert demo accounts.
    - Checks `/health` before sending traffic to the new version.
-5. When the status turns **Live**, open the URL shown at the top (e.g. `https://uemp.onrender.com`) and sign in with the test credentials in the README.
+5. When the status turns **Live**, create the first administrator as described in Step 4, then sign in with that account.
 
 To use a region other than the default (Oregon), add `region: frankfurt` (or `virginia`, `ohio`, `singapore`) under `name: uemp` in `render.yaml` before creating the Blueprint.
 
@@ -138,17 +138,19 @@ To use a region other than the default (Oregon), add `region: frankfurt` (or `vi
 | `UEMP_ENV` | `production` | Turns on secure (HTTPS-only) cookies. The app refuses to start without a real `SECRET_KEY`. |
 | `SECRET_KEY` | a long random string | Make one with `python -c "import secrets; print(secrets.token_hex(32))"` |
 | `DATABASE_URL` | your Neon connection string | |
-| `AUTO_SEED` | `1` | Creates tables and demo data on the first start |
+| `AUTO_SEED` | `0` | Keeps demo accounts out of the live database |
 | `PYTHON_VERSION` | `3.12.7` | |
 
 ### Why `--preload`?
-Gunicorn starts 2 worker processes. Without `--preload`, both would try to create the demo data at the same moment. With it, the app (and the seeding) is loaded once, before the workers start. The app then closes its database connections, so each worker opens its own. As a safety net, if two processes ever do race, the loser's duplicate insert is caught and ignored.
+Gunicorn starts 2 worker processes. `--preload` initializes and verifies the schema once before the workers start, rather than having each worker attempt initialization. The app then closes its initialization database connections, so each worker opens its own.
+
+The startup check creates missing tables, but it does not change columns or constraints on existing tables. Use an explicit database migration for future schema changes.
 
 ---
 
 ## Step 4 — After the first successful deploy
 
-- **Leave `AUTO_SEED=1` or turn it off.** Seeding only runs when the database has **no users**, so leaving it on never overwrites data. For a real (non-demo) installation, set it to `0`.
+- **Keep `AUTO_SEED=0` for a real installation.** The app initializes and verifies the schema at startup without creating demo users.
 - **Reset the demo data** (e.g. before the demo), from your computer:
 
   ```bash
@@ -157,11 +159,10 @@ Gunicorn starts 2 worker processes. Without `--preload`, both would try to creat
   ```
 
   This deletes **all** data in that database and reloads the demo data. You can also use Render's **Shell** tab (paid plans) and run `flask --app run seed --reset`.
-- **Real use instead of the demo:** create an empty Neon database (or a Neon *branch*), set `AUTO_SEED=0`, then create the first administrator:
+- **Create the first administrator:** after the service has started and initialized its tables, run this from a trusted local terminal using the Render `DATABASE_URL` and `SECRET_KEY` values:
 
   ```bash
-  DATABASE_URL="<neon url>" UEMP_ENV=production SECRET_KEY=x flask --app run init-db
-  DATABASE_URL="<neon url>" UEMP_ENV=production SECRET_KEY=x flask --app run create-superadmin
+  DATABASE_URL="<neon url>" UEMP_ENV=production SECRET_KEY="<render secret key>" flask --app run create-superadmin
   ```
 
   Then sign in and build faculties, departments, sessions and accounts from the Super Admin screens.
@@ -178,9 +179,35 @@ In Neon, **Branches → Create branch** makes an instant copy of the database. T
 ## Step 5 — Check the live site
 
 1. `https://<your-app>.onrender.com/health` should return `{"status": "ok"}`.
-2. Sign in as each test account (README §2) and follow the five-minute demo script (README §3).
+2. Sign in with the administrator account you created in Step 4, then create the university structure and user accounts.
 3. In the browser's developer tools (Application → Cookies), the session cookie should be marked **Secure** and **HttpOnly**.
 4. In Neon → **Tables**, you can see the data: `users`, `course_registrations`, `result_sheets`, `audit_logs` and so on.
+
+---
+
+## Step 6 — Keep the app awake (no slow first load)
+
+Render's free plan puts the app to sleep after **15 minutes** with no visitors. The next visitor then waits
+about a minute while it starts again. Pinging `/health` regularly prevents this. `/health` does not use the
+database, so Neon can still sleep and save its free compute hours.
+
+Set up **one or both** of these:
+
+**A. GitHub Actions (already in the repository: `.github/workflows/keepalive.yml`)**
+1. GitHub repository → **Settings → Secrets and variables → Actions → Variables → New repository variable**.
+2. Name `APP_URL`, value `https://<your-app>.onrender.com` (no trailing slash).
+3. **Actions → Keep Render awake → Run workflow** to test it. It then runs by itself every 10 minutes.
+
+GitHub can delay scheduled runs at busy times, and it pauses them in a repository with no commits for 60 days.
+
+**B. UptimeRobot (free, every 5 minutes, also emails you if the site goes down)**
+1. Sign up at <https://uptimerobot.com> → **New monitor**.
+2. Monitor type **HTTP(s)**, friendly name `UEMP`, URL `https://<your-app>.onrender.com/health`.
+3. Monitoring interval **5 minutes** → **Create monitor**.
+
+Render's free plan includes 750 instance-hours a month, enough for one app awake all the time
+(about 730 hours). Don't keep a second free service awake on the same account, or the hours run out before
+the month ends.
 
 ---
 
@@ -193,6 +220,7 @@ In Neon, **Branches → Create branch** makes an instant copy of the database. T
 | `prepared statement "…" does not exist` | Only possible if the app's engine settings were changed. Keep `prepare_threshold: None` in `config.py`, or use the direct (non-pooler) URL. |
 | First page load takes 30–60 s | Render free services sleep after 15 minutes without visits. Neon free databases also suspend when idle, and wake in about a second. Open the site a minute before a demo, or use a paid Render instance. |
 | Login works, but you are logged out on every click | `UEMP_ENV=production` makes cookies HTTPS-only. Use the `https://` URL, not `http://`. |
+| Login says the credentials are incorrect on a new database | The schema exists, but no account has been created yet. Run `flask --app run create-superadmin` with the Render database and secret-key environment values. |
 | Pages show "Something went wrong" | Read **Render → Logs**. The error page hides the details from users, but the full traceback is in the log. |
 | Data is missing after a deploy | Each deploy uses the same Neon database, so data persists. If tables are empty, check that `DATABASE_URL` points to the right Neon branch and database. |
 | `ModuleNotFoundError` during build | The package is missing from `requirements.txt`. Add it, commit and push. |

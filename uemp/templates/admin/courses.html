@@ -7,14 +7,17 @@
 {% endcall %}
 <div class="card table-card">
   <div class="card-header">
-    <form class="filter-bar w-100" method="get">
-      <input class="form-control" name="q" value="{{ request.args.get('q', '') }}" placeholder="Search code or title">
+    <form class="filter-bar w-100" method="get" data-auto-filter>
+      <input class="form-control" type="search" id="course-search" name="q" value="{{ request.args.get('q', '') }}" placeholder="Search code or title">
       <select name="level" class="form-select"><option value="">All levels</option>
         {% for lvl, label in levels %}<option value="{{ lvl }}" {{ 'selected' if request.args.get('level') == lvl|string }}>{{ label }}</option>{% endfor %}</select>
       <select name="term" class="form-select"><option value="">Both semesters</option>
         {% for t in terms %}<option value="{{ t.value }}" {{ 'selected' if request.args.get('term') == t.value }}>{{ t.label }}</option>{% endfor %}</select>
+      <select name="active" class="form-select" aria-label="Status"><option value="">Active and inactive</option>
+        <option value="1" {{ 'selected' if request.args.get('active') == '1' }}>Active only</option>
+        <option value="0" {{ 'selected' if request.args.get('active') == '0' }}>Inactive only</option></select>
       {{ ui.dept_filter(filter_departments) }}
-      <button class="btn btn-outline-primary"><i class="bi bi-funnel"></i> Filter</button>
+      <noscript><button class="btn btn-outline-primary">Filter</button></noscript>
     </form>
   </div>
   {% if page.items %}

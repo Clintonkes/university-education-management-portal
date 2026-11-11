@@ -5,13 +5,13 @@
 {% call ui.page_head("Semester results", "Only results approved by your department are shown.", "Academics") %}
   {% if semesters %}
   <form method="get">
-    <select name="semester_id" class="form-select" onchange="this.form.submit()" aria-label="Semester">
+    <select name="semester_id" class="form-select" onchange="this.form.requestSubmit()" aria-label="Semester">
       {% for s in semesters %}
         <option value="{{ s.id }}" {{ 'selected' if chosen and s.id == chosen.id }}>{{ s.name }}</option>
       {% endfor %}
     </select>
   </form>
-  <a class="btn btn-light" href="{{ url_for('student.statement') }}"><i class="bi bi-printer me-1"></i>Statement</a>
+  <a class="btn btn-light" target="_blank" rel="noopener" href="{{ url_for('student.statement') }}"><i class="bi bi-printer me-1"></i>Statement</a>
   {% endif %}
 {% endcall %}
 

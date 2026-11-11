@@ -3,7 +3,7 @@ Browser end-to-end tests — a real Chromium browser clicks through the portal.
 
 What this adds on top of the other tests:
     * real CSRF tokens, real cookies, real JavaScript (live grade preview,
-      unit counter, confirmation dialogs, mobile menu);
+      unit counter, confirmation modals, mobile menu);
     * the four workflows done by clicking, as an evaluator would;
     * responsive check: no sideways scrolling on a phone-sized screen;
     * no JavaScript errors in the browser console on any page.
@@ -63,6 +63,14 @@ def browser():
         b.close()
 
 
+HTMX_TRACKER = """
+window.__htmxBusy = false;
+document.addEventListener("htmx:beforeRequest", () => { window.__htmxBusy = true; });
+["htmx:afterSettle", "htmx:sendError", "htmx:responseError", "htmx:swapError"].forEach(
+  (name) => document.addEventListener(name, () => { window.__htmxBusy = false; }));
+"""
+
+
 class Session:
     """A browser tab signed in as one user, collecting console errors."""
 
@@ -73,23 +81,36 @@ class Session:
         self.errors = []
         self.page.on("console", lambda m: m.type == "error" and self.errors.append(m.text))
         self.page.on("pageerror", lambda e: self.errors.append(str(e)))
-        self.page.on("dialog", lambda d: d.accept())   # click "OK" on confirmation prompts
+        # The portal swaps pages with htmx instead of loading them, so
+        # "networkidle" can fire before the swap. Track htmx requests instead.
+        self.page.add_init_script(HTMX_TRACKER)
 
     def go(self, path):
         self.page.goto(self.base + path)
         self.page.wait_for_load_state("networkidle")
         return self.page
 
+    def wait(self):
+        """Wait for the click/submit that just happened to finish (htmx swap or full page load)."""
+        self.page.wait_for_load_state("load")
+        self.page.wait_for_function("window.__htmxBusy !== true")
+
     def login(self, email, password):
         self.go("/login")
         self.page.fill("#email", email)
         self.page.fill("#password", password)
         self.page.click("button:has-text('Sign in')")
-        self.page.wait_for_load_state("networkidle")
+        self.wait()
         return self
 
     def flash(self):
-        return self.page.locator(".alert").first.inner_text()
+        return self.page.locator(".toast").first.inner_text()
+
+    def confirm(self, selector):
+        self.page.locator(selector).click()
+        self.page.locator("#confirmation-modal.show").wait_for()
+        self.page.locator("[data-confirmation-accept]").click()
+        self.wait()
 
     def shot(self, name):
         if SHOTS:
@@ -109,6 +130,10 @@ def test_01_login_page_demo_chip_and_wrong_password(server, browser):
     s.go("/login")
     s.page.click("[data-demo-email='student@uemp.edu.ng']")
     assert s.page.input_value("#email") == "student@uemp.edu.ng"
+    s.page.click("[data-password-toggle]")
+    assert s.page.locator("#password").get_attribute("type") == "text"
+    s.page.click("[data-password-toggle]")
+    assert s.page.locator("#password").get_attribute("type") == "password"
     s.page.fill("#password", "wrong-password1")
     s.page.click("button:has-text('Sign in')")
     assert "Incorrect email or password" in s.flash()
@@ -120,6 +145,7 @@ def test_02_workflow1_student_registers_with_live_unit_counter(server, browser):
     s = Session(browser, server).login("student@uemp.edu.ng", "Student@1234")
     assert s.page.url.endswith("/student/")
     s.page.click("text=Course Registration")
+    s.wait()
     submit = s.page.locator("[data-register-submit]")
     assert submit.is_disabled()                              # nothing ticked yet
     s.page.click("label.course-option:has-text('CSC 201')")
@@ -128,28 +154,30 @@ def test_02_workflow1_student_registers_with_live_unit_counter(server, browser):
     assert submit.is_enabled()
     s.shot("02_registration_selected")
     submit.click()
-    s.page.wait_for_load_state("networkidle")
+    s.wait()
     assert "Courses registered successfully" in s.flash()
 
-    # Drop a course (confirmation dialog is accepted automatically).
-    s.page.locator("tr:has-text('MTH 201') button[title='Drop course']").click()
-    s.page.wait_for_load_state("networkidle")
+    # Drop a course after confirming in the modal.
+    s.confirm("tr:has-text('MTH 201') button[title='Drop course']")
+    s.wait()
     assert "Course dropped" in s.flash()
     assert s.page.locator("label.course-option:has-text('CSC 201') input").is_checked()
 
     # Printable slip
     s.go("/student/")
-    s.page.click("text=Print registration slip")
-    s.page.wait_for_load_state("networkidle")
-    assert "Course Registration Form" in s.page.content() and "CSC 201" in s.page.content()
-    s.shot("02_registration_slip")
+    with s.context.expect_page() as new_tab:
+        s.page.click("text=Print registration slip")      # opens in a new tab
+    slip = new_tab.value
+    slip.wait_for_load_state()
+    assert "Course Registration Form" in slip.content() and "CSC 201" in slip.content()
+    slip.close()
     s.close()
 
 
 def test_03_workflow2_lecturer_live_grades_draft_and_submit(server, browser):
     s = Session(browser, server).login("lecturer@uemp.edu.ng", "Lecturer@1234")
     s.page.click("tr:has-text('CSC 201') >> text=Enter scores")
-    s.page.wait_for_load_state("networkidle")
+    s.wait()
     rows = s.page.locator("tr[data-entry]")
     count = rows.count()
     assert count == 12                                        # 11 seeded + the student from step 02
@@ -167,12 +195,12 @@ def test_03_workflow2_lecturer_live_grades_draft_and_submit(server, browser):
         rows.nth(i).locator("[data-ca]").fill(str(20 + i))
         rows.nth(i).locator("[data-exam]").fill(str(30 + i))
     s.page.click("button:has-text('Save draft')")
-    s.page.wait_for_load_state("networkidle")
+    s.wait()
     assert "Draft saved" in s.flash()
     s.shot("03_score_sheet_draft")
 
-    s.page.click("button:has-text('Submit for approval')")
-    s.page.wait_for_load_state("networkidle")
+    s.confirm("button:has-text('Submit for approval')")
+    s.wait()
     assert "submitted for departmental review" in s.flash()
     assert s.page.locator("[data-ca]").count() == 0           # inputs are gone: sheet is locked
     s.close()
@@ -181,29 +209,30 @@ def test_03_workflow2_lecturer_live_grades_draft_and_submit(server, browser):
 def test_04_workflow3_dept_admin_returns_then_approves(server, browser):
     admin = Session(browser, server).login("csc.admin@uemp.edu.ng", "Admin@1234")
     admin.page.click("text=Result Approval")
+    admin.wait()
     admin.page.click("tr:has-text('CSC 201') a.btn:has-text('Review')")
-    admin.page.wait_for_load_state("networkidle")
+    admin.wait()
     admin.page.fill("textarea[name=comment]", "Please recheck CA for the first student")
     admin.page.click("button:has-text('Return for correction')")
-    admin.page.wait_for_load_state("networkidle")
+    admin.wait()
     assert "returned to the lecturer" in admin.flash()
 
     lecturer = Session(browser, server).login("lecturer@uemp.edu.ng", "Lecturer@1234")
     assert "Please recheck CA for the first student" in lecturer.page.content()
     lecturer.page.click("text=Fix now")
-    lecturer.page.wait_for_load_state("networkidle")
+    lecturer.wait()
     lecturer.page.locator("tr[data-entry]").nth(0).locator("[data-ca]").fill("33")
-    lecturer.page.click("button:has-text('Submit for approval')")
-    lecturer.page.wait_for_load_state("networkidle")
+    lecturer.confirm("button:has-text('Submit for approval')")
+    lecturer.wait()
     assert "submitted for departmental review" in lecturer.flash()
     lecturer.close()
 
     admin.go("/admin/results")
     admin.page.click("tr:has-text('CSC 201') a.btn:has-text('Review')")
-    admin.page.wait_for_load_state("networkidle")
+    admin.wait()
     assert "Exam" in admin.page.inner_text(".timeline") or "modified" in admin.page.inner_text(".timeline").lower()
-    admin.page.click("button:has-text('Approve & publish')")
-    admin.page.wait_for_load_state("networkidle")
+    admin.confirm("button:has-text('Approve & publish')")
+    admin.wait()
     assert "approved and published" in admin.flash()
     admin.shot("04_review_approved")
     admin.close()
@@ -212,11 +241,11 @@ def test_04_workflow3_dept_admin_returns_then_approves(server, browser):
 def test_05_student_sees_approved_result_and_gpa(server, browser):
     s = Session(browser, server).login("student@uemp.edu.ng", "Student@1234")
     s.page.click("text=Semester Results")
-    s.page.wait_for_load_state("networkidle")
+    s.wait()
     content = s.page.content()
     assert "CSC 201" in content and "Semester GPA" in content
     s.page.click("text=Academic History")
-    s.page.wait_for_load_state("networkidle")
+    s.wait()
     assert "First Semester 2026/2027" in s.page.content()
     s.shot("05_student_history")
     s.close()
@@ -226,22 +255,24 @@ def test_06_workflow4_super_admin_session_and_registration_control(server, brows
     s = Session(browser, server).login("admin@uemp.edu.ng", "Admin@1234")
     assert s.page.url.endswith("/super/")
     s.page.click("text=Sessions & Semesters")
+    s.wait()
     s.page.fill("input[name=name]", "2027/2028")
     s.page.click("button:has-text('Create session')")
-    s.page.wait_for_load_state("networkidle")
+    s.wait()
     assert "Session created" in s.flash()
-    card = s.page.locator(".card:has-text('2027/2028')")
-    card.locator("tr:has-text('First Semester') button:has-text('Make current')").click()
-    s.page.wait_for_load_state("networkidle")
-    assert "is now current" in s.flash()
-    s.page.locator(".card:has-text('2027/2028') tr:has-text('First Semester') button:has-text('Open registration')").click()
-    s.page.wait_for_load_state("networkidle")
+    s.confirm(".card:has-text('2027/2028') tr:has-text('First Semester') button:has-text('Make current')")
+    s.wait()
+    assert "is now the current semester" in s.flash()
+    s.page.click(".card:has-text('2027/2028') tr:has-text('First Semester') button:has-text('Open registration')")
+    s.wait()
     assert "Registration opened" in s.flash()
     assert "First Semester 2027/2028" in s.page.inner_text(".semester-pill")
 
     s.page.click("text=Roles & Permissions")
+    s.wait()
     assert s.page.locator("i.perm-yes").count() > 20
     s.page.click("text=Audit Trail")
+    s.wait()
     assert "result.approved" in s.page.content() and "session.created" in s.page.content()
     s.shot("06_super_audit")
     s.close()
@@ -283,8 +314,73 @@ def test_09_sign_out(server, browser):
     s = Session(browser, server).login("student@uemp.edu.ng", "Student@1234")
     s.page.click(".topbar .dropdown button")
     s.page.click("button:has-text('Sign out')")
-    s.page.wait_for_load_state("networkidle")
+    s.wait()
     assert "/login" in s.page.url and "signed out" in s.flash()
     s.go("/student/")
     assert "/login" in s.page.url
+    s.close()
+
+
+def test_10_sidebar_stays_loaded_while_pages_change(server, browser):
+    """Clicking around swaps only the main panel: the sidebar is never reloaded."""
+    s = Session(browser, server).login("csc.admin@uemp.edu.ng", "Admin@1234")
+    s.page.evaluate("document.querySelector('.sidebar').__marker = 'still-here'")
+    for link, heading in [("Students", "Students"), ("Registrations", "registrations"),
+                          ("Reports", "Department report")]:
+        s.page.click(f".sidebar a:has-text('{link}')")
+        s.wait()
+        assert heading.lower() in s.page.content().lower()
+        assert s.page.evaluate("document.querySelector('.sidebar').__marker") == "still-here"
+        assert s.page.locator(f".sidebar a.active:has-text('{link}')").count() == 1   # highlight follows
+    # The browser Back button still works.
+    s.page.go_back()
+    s.wait()
+    assert "/admin/registrations" in s.page.url
+    s.close()
+
+
+def test_11_lecturer_tabs_and_correction_request(server, browser):
+    s = Session(browser, server).login("lecturer@uemp.edu.ng", "Lecturer@1234")
+    s.go("/lecturer/courses")
+    s.page.click("tr:has-text('CSC 201') a:has-text('Open')")
+    s.wait()
+    for tab, text in [("Class list", "CSC/2025/002"), ("Performance", "Pass rate")]:
+        s.page.click(f".page-tabs a:has-text('{tab}')")
+        s.wait()
+        assert text in s.page.content(), tab
+    s.page.click(".page-tabs a:has-text('correction')")
+    s.wait()
+    s.page.fill("textarea[name=reason]", "Student CSC/2025/004 exam score was mistyped")
+    s.page.click("button:has-text('Send request')")
+    s.wait()
+    assert "Request sent" in s.flash()
+    s.close()
+
+    admin = Session(browser, server).login("csc.admin@uemp.edu.ng", "Admin@1234")
+    admin.go("/admin/results?status=correction")
+    admin.page.click("tr:has-text('CSC 201') a.btn")
+    admin.wait()
+    assert "mistyped" in admin.page.content()
+    admin.page.fill("textarea[name=comment]", "Approved, please fix")
+    admin.confirm("button:has-text('Allow')")
+    assert "Correction allowed" in admin.flash()
+    admin.close()
+
+
+def test_12_super_admin_completes_semester_and_reads_audit(server, browser):
+    s = Session(browser, server).login("admin@uemp.edu.ng", "Admin@1234")
+    s.go("/super/sessions")
+    row = ".card:has-text('2025/2026') tr:has-text('First Semester')"
+    s.page.click(f"{row} button[aria-label^='More actions']")
+    s.confirm(f"{row} button:has-text('Mark semester completed')")
+    assert "marked as completed" in s.flash()
+    s.page.click(".card:has-text('2025/2026') a:has-text('First Semester')")
+    s.wait()
+    assert "What happened" in s.page.content()
+    s.page.click(".sidebar a:has-text('Audit Trail')")
+    s.wait()
+    s.page.click(".chip-filter a:has-text('Calendar')")
+    s.wait()
+    assert "Semester completed" in s.page.content() or "completed" in s.page.inner_text(".table-card")
+    s.shot("12_super_audit_calendar")
     s.close()

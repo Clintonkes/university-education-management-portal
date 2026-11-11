@@ -30,6 +30,12 @@ class SessionForm(FlaskForm):
     submit = SubmitField("Create session")
 
 
+class SemesterForm(FlaskForm):
+    start_date = DateField("Start date", validators=[Optional()])
+    end_date = DateField("End date", validators=[Optional()])
+    submit = SubmitField("Save dates")
+
+
 class AdminUserForm(FlaskForm):
     role = SelectField("Role", choices=[(Role.DEPT_ADMIN.value, Role.DEPT_ADMIN.label),
                                         (Role.SUPER_ADMIN.value, Role.SUPER_ADMIN.label)])

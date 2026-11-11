@@ -3,12 +3,18 @@
 import time
 
 import pytest
+from sqlalchemy import inspect
 from sqlalchemy.exc import IntegrityError
 
 from uemp import create_app
 from uemp.extensions import db
 from uemp.models import (
-    AuditLog, CourseAllocation, CourseRegistration, ResultEntry, StudentProfile, User,
+    AuditLog,
+    CourseAllocation,
+    CourseRegistration,
+    ResultEntry,
+    StudentProfile,
+    User,
 )
 from uemp.security.permissions import ROLE_PERMISSIONS, Perm
 
@@ -47,6 +53,18 @@ def test_production_cookie_and_session_settings():
     assert ProductionConfig.SESSION_COOKIE_SECURE and ProductionConfig.SESSION_COOKIE_HTTPONLY
     assert ProductionConfig.SESSION_COOKIE_SAMESITE == "Lax"
     assert ProductionConfig.PERMANENT_SESSION_LIFETIME.total_seconds() == 30 * 60
+
+
+def test_non_testing_app_initializes_schema_without_demo_users(tmp_path):
+    database_path = tmp_path / "startup.db"
+    app = create_app("development", {
+        "SQLALCHEMY_DATABASE_URI": f"sqlite:///{database_path}",
+        "AUTO_SEED": False,
+    })
+
+    with app.app_context():
+        assert set(db.metadata.tables) <= set(inspect(db.engine).get_table_names())
+        assert db.session.scalar(db.select(User).limit(1)) is None
 
 
 def test_idle_session_expires(app, client):
@@ -158,3 +176,14 @@ def test_pages_have_mobile_viewport_and_security_headers(as_student, url):
     assert b'name="viewport" content="width=device-width, initial-scale=1"' in response.data
     assert response.headers["X-Frame-Options"] == "DENY"
     assert response.headers["Cache-Control"] == "no-store"
+
+
+def test_static_files_are_versioned_and_cached_in_production():
+    from uemp import create_app
+    app = create_app("production", {"SECRET_KEY": "x" * 40, "SQLALCHEMY_DATABASE_URI": "sqlite://", "AUTO_SEED": False})
+    with app.test_request_context():
+        from flask import url_for
+        url = url_for("static", filename="js/app.js")
+    assert "?v=" in url
+    response = app.test_client().get(url)
+    assert response.status_code == 200 and "max-age=31536000" in response.headers["Cache-Control"]

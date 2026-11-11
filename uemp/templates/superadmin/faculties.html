@@ -2,7 +2,7 @@
 {% import "_macros.html" as ui %}
 {% block title %}Faculties & departments{% endblock %}
 {% block content %}
-{% call ui.page_head("Faculties & departments", "The university's academic structure.", "University") %}
+{% call ui.page_head("Faculties & departments", "The university's academic structure. A faculty or department can only be deleted once it is empty.", "University") %}
   <a class="btn btn-light" href="{{ url_for('superadmin.faculties_department_new') }}"><i class="bi bi-plus-lg me-1"></i>Department</a>
   <a class="btn btn-primary" href="{{ url_for('superadmin.faculties_new') }}"><i class="bi bi-plus-lg me-1"></i>Faculty</a>
 {% endcall %}
@@ -16,6 +16,9 @@
         <span class="d-flex gap-1">
           <a class="btn btn-sm btn-light" href="{{ url_for('superadmin.faculties_department_new', faculty_id=f.id) }}" title="Add department"><i class="bi bi-plus-lg"></i></a>
           <a class="btn btn-sm btn-light" href="{{ url_for('superadmin.faculties_edit', faculty_id=f.id) }}" title="Edit faculty"><i class="bi bi-pencil"></i></a>
+          <form method="post" action="{{ url_for('superadmin.faculties_delete', faculty_id=f.id) }}" class="d-inline">{{ ui.csrf() }}
+            <button class="btn btn-sm btn-light text-danger" title="{{ 'Delete its departments first' if f.departments else 'Delete faculty' }}" {{ 'disabled' if f.departments }}
+                    data-confirm="Delete {{ f.name }}?" aria-label="Delete {{ f.name }}"><i class="bi bi-trash"></i></button></form>
         </span>
       </div>
       {% if f.departments %}
@@ -25,7 +28,12 @@
         <tbody>
         {% for d in f.departments %}
           <tr><td class="mono">{{ d.code }}</td><td class="fw-semibold">{{ d.name }}</td><td class="text-center">{{ d.programs | length }}</td>
-            <td class="text-end"><a class="btn btn-sm btn-link" href="{{ url_for('superadmin.faculties_department_edit', department_id=d.id) }}">Edit</a></td></tr>
+            <td class="text-end text-nowrap">
+              <a class="btn btn-sm btn-link" href="{{ url_for('admin.dashboard', department_id=d.id) }}">Dashboard</a>
+              <a class="btn btn-sm btn-link" href="{{ url_for('superadmin.faculties_department_edit', department_id=d.id) }}">Edit</a>
+              <form method="post" action="{{ url_for('superadmin.faculties_department_delete', department_id=d.id) }}" class="d-inline">{{ ui.csrf() }}
+                <button class="btn btn-sm btn-link text-danger" data-confirm="Delete the {{ d.name }} department? Only possible if it has no programmes, courses or people.">Delete</button></form>
+            </td></tr>
         {% endfor %}
         </tbody>
       </table>

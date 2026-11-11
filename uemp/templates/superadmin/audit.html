@@ -1,41 +1,67 @@
+{#
+  audit.html — The audit trail written for people, not programmers.
+
+  Each entry reads as: [icon] WHAT happened · WHO did it (their role) · WHEN,
+  then the details ("Approved CSC 201 results for First Semester 2026/2027").
+  Entries are grouped by day. Hovering the (i) icon explains what that kind
+  of action means. Filters: kind of activity, role, person, dates, search.
+  The technical code and IP address are shown small, for investigations.
+#}
 {% extends "base.html" %}
 {% import "_macros.html" as ui %}
 {% block title %}Audit trail{% endblock %}
 {% block content %}
-{{ ui.page_head("Audit trail", "Who did what, when and from where. Entries can never be edited.", "University") }}
+{{ ui.page_head("Audit trail", "A permanent record of who did what and when. Entries can never be edited or deleted.", "University") }}
+
 <div class="card table-card">
-  <div class="card-header">
-    <form class="filter-bar w-100" method="get">
-      <select name="action" class="form-select" onchange="this.form.submit()">
-        <option value="">All actions</option>
-        {% for key, label in [('result','Results'),('registration','Registrations'),('user','Accounts'),('auth','Sign-ins'),('course','Courses'),('allocation','Allocations'),('semester','Semesters'),('session','Sessions')] %}
-          <option value="{{ key }}" {{ 'selected' if request.args.get('action') == key }}>{{ label }}</option>
-        {% endfor %}
-      </select>
-      <input class="form-control" name="q" value="{{ request.args.get('q', '') }}" placeholder="Search descriptions (e.g. CSC 201)">
-      <button class="btn btn-outline-primary"><i class="bi bi-search"></i> Search</button>
+  <div class="card-header d-block">
+    <div class="chip-filter mb-3">
+      {% set base_args = request.args.to_dict() %}{% set _ = base_args.pop('category', None) %}{% set _ = base_args.pop('page', None) %}
+      <a href="{{ url_for('superadmin.audit', **base_args) }}" class="{{ 'active' if not request.args.get('category') }}">Everything</a>
+      {% for c in categories %}
+        <a href="{{ url_for('superadmin.audit', category=c, **base_args) }}" class="{{ 'active' if request.args.get('category') == c }}">{{ c }}</a>
+      {% endfor %}
+    </div>
+    <form class="filter-bar" method="get" data-auto-filter>
+      {% if request.args.get('category') %}<input type="hidden" name="category" value="{{ request.args.get('category') }}">{% endif %}
+      <input class="form-control" type="search" id="audit-who" name="who" value="{{ request.args.get('who', '') }}" placeholder="Person (name or email)" aria-label="Person">
+      <select name="role" class="form-select" aria-label="Role"><option value="">Anyone</option>
+        {% for r in roles %}<option value="{{ r.value }}" {{ 'selected' if request.args.get('role') == r.value }}>{{ r.label }}s</option>{% endfor %}</select>
+      <input class="form-control" type="search" id="audit-q" name="q" value="{{ request.args.get('q', '') }}" placeholder="Details contain… (e.g. CSC 201)" aria-label="Search details">
+      <label class="small muted" for="audit-from">From</label>
+      <input class="form-control" type="date" id="audit-from" name="from" value="{{ request.args.get('from', '') }}">
+      <label class="small muted" for="audit-to">to</label>
+      <input class="form-control" type="date" id="audit-to" name="to" value="{{ request.args.get('to', '') }}">
+      {% if request.args %}<a class="btn btn-link" href="{{ url_for('superadmin.audit') }}">Clear</a>{% endif %}
+      <noscript><button class="btn btn-outline-primary">Search</button></noscript>
     </form>
   </div>
+
   {% if page.items %}
-  <div class="table-responsive">
-    <table class="table table-sm table-hover">
-      <thead><tr><th>When</th><th>Who</th><th>Action</th><th>Details</th><th>IP</th></tr></thead>
-      <tbody>
-      {% for a in page.items %}
-        <tr>
-          <td class="small text-nowrap">{{ a.created_at | dt }}</td>
-          <td class="small">{{ a.actor.display_name if a.actor else 'System' }}<div class="muted">{{ a.actor.role_label if a.actor }}</div></td>
-          <td><span class="badge text-bg-light border mono">{{ a.action }}</span></td>
-          <td class="small">{{ a.description }}</td>
-          <td class="small muted mono">{{ a.ip_address or '—' }}</td>
-        </tr>
-      {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {{ ui.pager(page, 'superadmin.audit') }}
+    <div class="px-3 py-2 small muted border-bottom">{{ page.total }} {{ 'activity' if page.total == 1 else 'activities' }} found</div>
+    {% set ns = namespace(day=None) %}
+    {% for a in page.items %}
+      {% set e = describe(a) %}
+      {% set day = a.created_at.strftime('%A %d %B %Y') %}
+      {% if day != ns.day %}{% set ns.day = day %}<div class="audit-day">{{ day }}</div>{% endif %}
+      <div class="audit-item">
+        <div class="stat-icon tone-{{ e.tone }}"><i class="bi bi-{{ e.icon }}"></i></div>
+        <div class="flex-grow-1" style="min-width: 0">
+          <div>
+            <span class="title">{{ e.title }}</span>
+            {% if e.meaning %}<i class="bi bi-info-circle muted small" title="{{ e.meaning }}" data-bs-toggle="tooltip"></i>{% endif %}
+            <span class="badge text-bg-light border ms-1">{{ e.category }}</span>
+          </div>
+          <div class="small"><strong>{{ e.who }}</strong>{% if e.who_role %} <span class="muted">({{ e.who_role }})</span>{% endif %}</div>
+          <div class="details">{{ e.details }}</div>
+          <div class="small muted mt-1"><span class="mono">{{ a.action }}</span>{% if a.ip_address %} · from {{ a.ip_address }}{% endif %}</div>
+        </div>
+        <div class="small muted text-nowrap text-end">{{ a.created_at.strftime('%H:%M') }}</div>
+      </div>
+    {% endfor %}
+    {{ ui.pager(page, 'superadmin.audit') }}
   {% else %}
-    {{ ui.empty("No entries match", "", "clock-history") }}
+    {{ ui.empty("No activities match", "Try another filter or date range.", "clock-history") }}
   {% endif %}
 </div>
 {% endblock %}

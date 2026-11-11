@@ -85,23 +85,27 @@ Follow these steps to see every required workflow end-to-end.
 5. Click **Print slip** for a printable registration form.
 
 **Workflow 2 — Lecturer result submission**
-1. Sign in as `lecturer@uemp.edu.ng` → **CSC 201**.
-2. Type CA (max 40) and exam (max 60) scores. Total and grade appear as you type.
-3. **Save draft**, then **Submit for approval**. The sheet is now locked.
+1. Sign in as `lecturer@uemp.edu.ng` → **CSC 201**. The course page has tabs: **Overview, Class list, Enter scores, Submit, Performance, Request correction**.
+2. **Class list** shows the registered students in a table (CSV and print available).
+3. **Enter scores**: type CA (max 40) and exam (max 60) scores. Total and grade appear as you type.
+4. **Save draft**, then **Submit for approval**. The sheet is now locked. **Submit** shows the status and the department's feedback, and **Performance** shows the course and student summaries.
+5. To change locked results, use **Request correction**. The department allows or refuses it in **Result Approval → Correction requested**.
 
 **Workflow 3 — Departmental result approval**
 1. Sign in as `csc.admin@uemp.edu.ng` → **Result Approval**.
 2. Open **CSC 203** (or the CSC 201 sheet you just submitted).
-3. Either **Approve & publish**, or write a comment and **Return for correction**.
+3. Either **Approve & publish**, or write a comment and **Return for correction**. **Reports → Department report** gives a one-page department report, with the formula behind every figure.
    - If returned, the lecturer sees the feedback on their dashboard, corrects and resubmits. Every changed score is recorded in the audit trail (e.g. `Exam 45→40`).
 4. Sign in as a student in that class: the approved results and the updated GPA/CGPA now appear.
 
 **Workflow 4 — Super Admin management**
 1. Sign in as `admin@uemp.edu.ng`.
 2. **Faculties & Departments** → create a faculty and a department.
-3. **Sessions & Semesters** → create `2027/2028` (both semesters are created), make one current, open/close registration.
-4. **User Accounts** → create a Department Admin, change a lecturer's role, suspend/activate accounts.
-5. **Roles & Permissions** shows the exact permission table the server enforces. **Audit Trail** shows every important action.
+3. **Sessions & Semesters** → create `2027/2028` (both semesters are created), make one current, and open or close registration. Mark semesters and sessions **completed**, edit dates, or add and delete semesters. Click a session or semester to see everything that happened in it.
+4. **User Accounts** → create a Department Admin, change a lecturer's role, and suspend, unsuspend or unlock accounts. Delete people, programmes, departments and faculties; anything still in use is protected.
+5. **Department Dashboard** → choose a department to see its full report, or leave it on "All" to compare departments.
+6. **Registrations** → open any registration to change its course or type (regular, carry-over or elective), or add a remark.
+7. **Roles & Permissions** shows the exact permission table the server enforces. **Audit Trail** shows every important action in plain English ("Results approved · by Dr. … (Department Admin)"), grouped by day and filterable by kind, person, role and date.
 
 **Try the security**
 - While signed in as a student, open `/admin/` or `/super/` in the address bar → **403 Access denied**.
@@ -149,7 +153,7 @@ Settings are read from environment variables (or a `.env` file — copy `.env.ex
 | `UEMP_ENV` | `development` or `production` | `development` |
 | `SECRET_KEY` | Signs session cookies. **Required in production.** | dev-only value |
 | `DATABASE_URL` | PostgreSQL URL. `postgres://` URLs are accepted. | SQLite file in `instance/` |
-| `AUTO_SEED` | `1` = create tables + demo data on first start | `0` |
+| `AUTO_SEED` | `1` = create demo data on first start (demo use only) | `0` |
 
 Academic rules live in `config.py` and are documented there: **grading scale**, maximum CA (40) and exam (60) scores, maximum units per semester (24), academic levels.
 
@@ -176,7 +180,8 @@ Step-by-step guide, with troubleshooting: **[docs/DEPLOYMENT.md](docs/DEPLOYMENT
 In short:
 1. Push the repository to GitHub.
 2. Create a Neon project and copy its **pooled** connection string.
-3. In Render, choose **New → Blueprint** and select the repository. Paste the Neon string when asked for `DATABASE_URL`. `render.yaml` sets everything else: it generates a `SECRET_KEY`, starts gunicorn, sets the `/health` check, and loads the demo data on first start.
+3. In Render, choose **New → Blueprint** and select the repository. Paste the Neon string when asked for `DATABASE_URL`. `render.yaml` sets everything else: it generates a `SECRET_KEY`, initializes and verifies the database tables at startup without inserting demo accounts, and sets the `/health` check.
+4. Keep the free service awake: add a repository variable `APP_URL` (your Render URL) so `.github/workflows/keepalive.yml` pings `/health` every 10 minutes, and/or add a free UptimeRobot monitor. See [DEPLOYMENT.md, Step 6](docs/DEPLOYMENT.md#step-6--keep-the-app-awake-no-slow-first-load).
 
 ### Any other host (Railway, Fly.io, a VPS…)
 ```bash

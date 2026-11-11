@@ -75,11 +75,13 @@ def test_weak_password_and_duplicate_email_rejected(as_csc_admin):
     assert b"already in use" in dup.data
 
 
-def test_deactivate_reactivate_and_reset_password_of_own_student(as_csc_admin, app):
+def test_dept_admin_cannot_change_account_status_but_can_reset_password(as_csc_admin, app):
+    # Activate / deactivate / suspend belong to the Super Admin only.
     student = user("csc26002@uemp.edu.ng")
-    as_csc_admin.post(f"/admin/users/{student.id}/status", data={"status": "inactive"})
-    assert user("csc26002@uemp.edu.ng").status == "inactive"
-    as_csc_admin.post(f"/admin/users/{student.id}/status", data={"status": "active"})
+    assert as_csc_admin.post(f"/admin/users/{student.id}/status", data={"status": "inactive"}).status_code == 403
+    assert user("csc26002@uemp.edu.ng").status == "active"
+    page = as_csc_admin.get(f"/admin/students/{student.id}").get_data(as_text=True)
+    assert "Deactivate" not in page and "Suspend" not in page
     as_csc_admin.post(f"/admin/users/{student.id}/password", data={"new_password": "NewPass2026"})
     assert login(app.test_client(), "csc26002@uemp.edu.ng", "NewPass2026").status_code == 302
 
@@ -139,7 +141,9 @@ def test_assign_lecturer_to_course_and_remove_allocation(as_csc_admin):
     allocation = db.session.scalar(db.select(CourseAllocation).filter_by(course_id=course("CSC 207").id))
     assert allocation.lecturer_id == musa.id
     allocation_id = allocation.id
-    as_csc_admin.post(f"/admin/allocations/{allocation_id}/delete")
+    assert as_csc_admin.get(f"/admin/allocations/{allocation_id}/delete").status_code == 405
+    response = as_csc_admin.post(f"/admin/allocations/{allocation_id}/delete", follow_redirects=True)
+    assert b"Allocation removed" in response.data
     db.session.expire_all()
     assert db.session.get(CourseAllocation, allocation_id) is None
 

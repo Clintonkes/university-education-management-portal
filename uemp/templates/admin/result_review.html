@@ -45,6 +45,26 @@
   </div>
 
   <div class="col-lg-4">
+    {% if sheet.correction_pending %}
+    <div class="card mb-4 border-warning">
+      <div class="card-header"><span><i class="bi bi-question-circle text-warning me-1"></i>Correction requested</span></div>
+      <div class="card-body">
+        <div class="small muted mb-1">{{ sheet.lecturer.display_name }} · {{ sheet.correction_requested_at | dt }}</div>
+        <blockquote class="border-start border-3 ps-3 small mb-3">{{ sheet.correction_reason }}</blockquote>
+        {% if sheet.lecturer_id != current_user.id %}
+        <form method="post" action="{{ url_for('admin.results_decision', sheet_id=sheet.id) }}">
+          {{ form.hidden_tag() }}
+          {{ form.comment(class="form-control mb-2", rows=2, placeholder="Note to the lecturer (required to refuse)") }}
+          <div class="d-flex gap-2">
+            <button name="decision" value="grant" class="btn btn-warning flex-fill" data-confirm="Allow the lecturer to edit these results? {{ 'Students will stop seeing them until they are approved again.' if sheet.status == 'approved' }}"><i class="bi bi-unlock me-1"></i>Allow correction</button>
+            <button name="decision" value="decline" class="btn btn-outline-secondary flex-fill"><i class="bi bi-x-circle me-1"></i>Refuse</button>
+          </div>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
     <div class="card mb-4">
       <div class="card-header">Decision</div>
       <div class="card-body">
@@ -80,7 +100,7 @@
           {% for a in trail %}
             <li><div class="small fw-semibold">{{ a.action.replace('result.', '').replace('_', ' ') | capitalize }}</div>
               <div class="small">{{ a.description | truncate(160) }}</div>
-              <div class="small muted">{{ a.actor.display_name if a.actor else 'System' }} · {{ a.created_at | dt }}</div></li>
+              <div class="small muted">{{ a.who }} · {{ a.created_at | dt }}</div></li>
           {% endfor %}
         </ul>
         {% else %}<div class="small muted">No recorded actions yet.</div>{% endif %}

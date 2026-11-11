@@ -21,6 +21,10 @@ class AuditLog(db.Model):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     actor_id: Mapped[int | None] = mapped_column(db.ForeignKey("users.id"), index=True)
+    # A copy of the person's name and role at the time, so the entry still
+    # reads correctly if their account is later deleted.
+    actor_name: Mapped[str | None] = mapped_column(db.String(150))
+    actor_role: Mapped[str | None] = mapped_column(db.String(20))
     action: Mapped[str] = mapped_column(db.String(60), nullable=False, index=True)  # e.g. "result.approved"
     entity_type: Mapped[str | None] = mapped_column(db.String(40))                  # e.g. "ResultSheet"
     entity_id: Mapped[int | None] = mapped_column()
@@ -29,3 +33,19 @@ class AuditLog(db.Model):
     created_at: Mapped[datetime] = mapped_column(db.DateTime, default=utcnow, nullable=False, index=True)
 
     actor: Mapped[User | None] = relationship()
+
+    @property
+    def who(self) -> str:
+        """Name of the person who did this (or 'System' for automatic actions)."""
+        if self.actor is not None:
+            return self.actor.display_name
+        return self.actor_name or "System"
+
+    @property
+    def who_role(self) -> str:
+        from .enums import Role
+        role = self.actor.role if self.actor is not None else self.actor_role
+        try:
+            return Role(role).label if role else ""
+        except ValueError:
+            return role or ""

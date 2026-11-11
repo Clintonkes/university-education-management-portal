@@ -51,6 +51,10 @@ def login():
         elif user is None or not user.check_password(form.password.data):
             if user:
                 user.register_failed_login(cfg["MAX_FAILED_LOGINS"], cfg["LOCKOUT_MINUTES"])
+                if user.is_locked():
+                    audit.record(user, "auth.locked",
+                                 f"{user.email} was locked for {cfg['LOCKOUT_MINUTES']} minutes after repeated wrong passwords",
+                                 user)
                 db.session.commit()
             flash("Incorrect email or password.", "danger")
         elif user.status != AccountStatus.ACTIVE:

@@ -3,14 +3,14 @@
 {% block title %}Students{% endblock %}
 {% block content %}
 {% call ui.page_head("Students", "Student records" ~ (" in your department" if current_user.role == 'dept_admin' else " across the university"), "Records") %}
-  <a class="btn btn-light" href="{{ url_for('admin.reports_csv', tab='students', **request.args) }}"><i class="bi bi-download me-1"></i>CSV</a>
+  <a class="btn btn-light" hx-boost="false" download href="{{ url_for('admin.reports_csv', tab='students', **request.args) }}"><i class="bi bi-download me-1"></i>CSV</a>
   <a class="btn btn-primary" href="{{ url_for('admin.students_new') }}"><i class="bi bi-person-plus me-1"></i>Register student</a>
 {% endcall %}
 
 <div class="card table-card">
   <div class="card-header">
-    <form class="filter-bar w-100" method="get">
-      <input class="form-control" name="q" value="{{ request.args.get('q', '') }}" placeholder="Search name, email or matric no.">
+    <form class="filter-bar w-100" method="get" data-auto-filter>
+      <input class="form-control" type="search" id="student-search" name="q" value="{{ request.args.get('q', '') }}" placeholder="Search name, email or matric no.">
       <select name="program_id" class="form-select"><option value="">All programmes</option>
         {% for id, label in programs %}<option value="{{ id }}" {{ 'selected' if request.args.get('program_id') == id|string }}>{{ label }}</option>{% endfor %}</select>
       <select name="level" class="form-select"><option value="">All levels</option>
@@ -18,7 +18,7 @@
       <select name="status" class="form-select"><option value="">Any status</option>
         {% for st in statuses %}<option value="{{ st }}" {{ 'selected' if request.args.get('status') == st }}>{{ st | title }}</option>{% endfor %}</select>
       {{ ui.dept_filter(filter_departments) }}
-      <button class="btn btn-outline-primary"><i class="bi bi-funnel"></i> Filter</button>
+      <noscript><button class="btn btn-outline-primary">Filter</button></noscript>
     </form>
   </div>
   {% if page.items %}

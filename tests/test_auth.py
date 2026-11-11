@@ -25,6 +25,13 @@ def test_wrong_password_is_rejected(client):
     response = login(client, "student@uemp.edu.ng", "wrong-password1")
     assert response.status_code == 200
     assert b"Incorrect email or password" in response.data
+    assert b'class="toast ' in response.data and b'role="alert"' in response.data
+
+
+def test_login_password_can_be_shown(client):
+    response = client.get("/login")
+    assert b"data-password-toggle" in response.data
+    assert b'aria-label="Show password"' in response.data
 
 
 def test_unknown_email_gives_same_message(client):

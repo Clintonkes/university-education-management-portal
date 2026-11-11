@@ -10,7 +10,9 @@ the future is automatically checked too.
 Expected access is decided by the URL area:
     /student/...   -> Student only
     /lecturer/...  -> Lecturer only
-    /admin/...     -> Department Admin and Super Admin
+    /admin/...     -> Department Admin and Super Admin, except the actions in
+                      SUPER_ONLY_ADMIN_ACTIONS (account status, deletes and
+                      registration edits), which are Super Admin only
     /super/...     -> Super Admin only
     /account/..., /logout -> any signed-in user
 Also: nothing may ever return a 500 (server error).
@@ -38,6 +40,10 @@ AREA_ACCESS = {
     "/logout": set(ROLES),
 }
 PUBLIC = {"static", "auth.login", "main.health"}
+SUPER_ONLY_ADMIN_ACTIONS = {
+    ("admin.users_status", "POST"), ("admin.users_unlock", "POST"), ("admin.users_delete", "POST"),
+    ("admin.registrations_view", "POST"), ("admin.registrations_delete", "POST"),
+}
 
 
 def _url_values():
@@ -52,6 +58,7 @@ def _url_values():
         "faculty_id": db.session.scalar(db.select(Faculty.id).filter_by(code="SCI")),
         "department_id": db.session.scalar(db.select(Department.id).filter_by(code="CSC")),
         "semester_id": current_semester().id,
+        "session_id": current_semester().session_id,
         "registration_id": reg.id,
         "tab": "students",
     }
@@ -77,10 +84,13 @@ def _all_routes(app):
             path = path.replace(f"<int:{name}>", str(value)).replace(f"<{name}>", str(value))
         for method in sorted(rule.methods & {"GET", "POST"}):
             routes.append((rule.endpoint, method, path))
-    return routes
+    # Deletes run last, so the records they remove are not needed by later checks.
+    return sorted(routes, key=lambda r: "delete" in r[0])
 
 
-def _allowed_roles(path):
+def _allowed_roles(endpoint, method, path):
+    if (endpoint, method) in SUPER_ONLY_ADMIN_ACTIONS:
+        return {"super_admin"}
     for prefix, roles in AREA_ACCESS.items():
         if path.startswith(prefix):
             return roles
@@ -108,7 +118,7 @@ def test_each_role_only_reaches_its_own_areas(app, role):
         if endpoint == "auth.logout":
             continue  # would end the session for the remaining checks
         response = client.open(path, method=method)
-        allowed = role in _allowed_roles(path)
+        allowed = role in _allowed_roles(endpoint, method, path)
         if response.status_code >= 500:
             problems.append(f"500 on {method} {path}")
         elif not allowed and response.status_code != 403:

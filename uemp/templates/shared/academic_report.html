@@ -1,0 +1,82 @@
+{#
+  academic_report.html — Printable academic report (statement of result).
+  Used by students (their own) and by admins (any student in scope).
+
+  For each approved semester: every course with CA, exam, total, grade,
+  grade point and quality points, then the semester figures (TCR, TCE, TGP,
+  GPA) and the running totals (CTCR, CTCE, CTGP, CGPA) with academic
+  standing. Ends with outstanding failed courses, results still pending,
+  and a key explaining every abbreviation and the grading scale.
+#}
+{% extends "base_print.html" %}
+{% set p = student.student_profile %}
+{% block title %}Academic report · {{ p.matric_number }}{% endblock %}
+{% block doc_subtitle %}Academic Report — Statement of Result (approved results only){% endblock %}
+{% block document %}
+<table class="kv mb-3">
+  <tr><td>Name</td><td class="fw-semibold">{{ student.full_name }}</td><td class="ps-4">Matric No.</td><td class="fw-semibold mono">{{ p.matric_number }}</td></tr>
+  <tr><td>Programme</td><td>{{ p.program.degree }} {{ p.program.name }}</td><td class="ps-4">Current level</td><td>{{ p.level }} Level</td></tr>
+  <tr><td>Department</td><td>{{ p.program.department.name }}</td><td class="ps-4">Faculty</td><td>{{ p.program.department.faculty.name }}</td></tr>
+  <tr><td>Year of entry</td><td>{{ p.entry_year }}</td><td class="ps-4">Programme length</td><td>{{ p.program.duration_years }} years ({{ p.program.max_level }} Level)</td></tr>
+  <tr><td>Gender</td><td>{{ p.gender or '—' }}</td><td class="ps-4">Account status</td><td>{{ student.status | title }}</td></tr>
+</table>
+
+<div class="row g-2 mb-4 text-center">
+  <div class="col-6 col-md-3"><div class="border rounded p-2"><div class="small muted">CGPA</div><div class="fs-4 fw-bold">{{ report.cgpa | num }}</div></div></div>
+  <div class="col-6 col-md-3"><div class="border rounded p-2"><div class="small muted">Class (so far)</div><div class="fw-bold">{{ report.classification }}</div></div></div>
+  <div class="col-6 col-md-3"><div class="border rounded p-2"><div class="small muted">Credits earned</div><div class="fs-5 fw-bold">{{ report.last.ctce if report.last else 0 }} / {{ report.last.ctcr if report.last else 0 }}</div></div></div>
+  <div class="col-6 col-md-3"><div class="border rounded p-2"><div class="small muted">Standing</div><div class="fw-bold">{{ report.standing }}</div></div></div>
+</div>
+
+{% for row in report.rows %}
+  {% set rec = row.record %}
+  <h6 class="fw-bold mt-4 mb-2">{{ rec.semester.name }}</h6>
+  <table class="table table-sm doc-table mb-1">
+    <thead><tr><th>Code</th><th>Course title</th><th class="text-center">Units</th><th class="text-center">CA</th><th class="text-center">Exam</th>
+      <th class="text-center">Total</th><th class="text-center">Grade</th><th class="text-center">GP</th><th class="text-center">QP</th></tr></thead>
+    <tbody>
+    {% for e in rec.entries %}
+      {% set c = e.registration.course %}
+      <tr {% if (e.grade_point or 0) == 0 %}class="table-danger"{% endif %}>
+        <td>{{ c.code }}{% if e.registration.registration_type == 'carryover' %} <span class="small muted">(CO)</span>{% endif %}</td><td>{{ c.title }}</td>
+        <td class="text-center">{{ c.units }}</td><td class="text-center">{{ e.ca_score | score }}</td><td class="text-center">{{ e.exam_score | score }}</td>
+        <td class="text-center">{{ e.total | score }}</td><td class="text-center fw-semibold">{{ e.grade }}</td>
+        <td class="text-center">{{ e.grade_point | num(1) }}</td><td class="text-center">{{ (c.units * (e.grade_point or 0)) | num(1) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <table class="table table-sm doc-table mb-0 small">
+    <tr><th>This semester</th><td>TCR {{ row.tcr }}</td><td>TCE {{ row.tce }}</td><td>TGP {{ row.tgp | num(1) }}</td><td class="fw-bold">GPA {{ row.gpa | num }}</td>
+      <td rowspan="2" class="align-middle">{{ row.standing }}</td></tr>
+    <tr><th>Cumulative</th><td>CTCR {{ row.ctcr }}</td><td>CTCE {{ row.ctce }}</td><td>CTGP {{ row.ctgp | num(1) }}</td><td class="fw-bold">CGPA {{ row.cgpa | num }}</td></tr>
+  </table>
+{% else %}
+  <p class="muted">No approved results yet.</p>
+{% endfor %}
+
+<h6 class="fw-bold mt-4 mb-2">Outstanding courses</h6>
+{% if report.outstanding %}
+  <p class="small mb-1">Failed courses not yet passed in a later semester (to be retaken as carry-over):</p>
+  <p class="mb-0">{% for e in report.outstanding %}<span class="badge text-bg-light border me-1">{{ e.registration.course.code }} ({{ e.registration.course.units }}u, {{ e.registration.semester.name }})</span>{% endfor %}</p>
+{% else %}
+  <p class="small muted mb-0">None.</p>
+{% endif %}
+
+{% if report.pending %}
+<h6 class="fw-bold mt-4 mb-2">Registered courses awaiting approved results</h6>
+<p class="small mb-0">{% for r in report.pending %}<span class="badge text-bg-light border me-1">{{ r.course.code }} · {{ r.semester.name }}</span>{% endfor %}</p>
+{% endif %}
+
+<div class="row g-3 mt-4 small">
+  <div class="col-md-7">
+    <div class="fw-semibold mb-1">Key</div>
+    <div class="muted">TCR = total credits (units) registered · TCE = total credits earned (passed) · TGP = total grade points (Σ units × grade point) ·
+      GPA = TGP ÷ TCR · C = cumulative (all semesters so far) · CGPA = CTGP ÷ CTCR · GP = grade point · QP = quality points (units × GP) · CO = carry-over.
+      Standing: Good standing (CGPA ≥ 1.50), Probation (1.00–1.49), At risk (below 1.00).</div>
+  </div>
+  <div class="col-md-5">
+    <div class="fw-semibold mb-1">Grading scale</div>
+    <table class="table table-sm doc-table m-0"><tr>{% for minimum, g, pt in config.GRADING_SCALE %}<td class="text-center"><strong>{{ g }}</strong><br>{{ minimum | int }}+<br>{{ pt | int }} pts</td>{% endfor %}</tr></table>
+  </div>
+</div>
+{% endblock %}

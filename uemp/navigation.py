@@ -80,3 +80,13 @@ def build_navigation(user) -> list[tuple[str, list[NavItem]]]:
         if user_can(user, item.permission):
             groups.setdefault(item.section, []).append(item)
     return list(groups.items())
+
+
+def active_endpoint(groups) -> str:
+    """Endpoint of the highlighted menu item (sent with each page so the
+    sidebar can update its highlight without being reloaded)."""
+    for _section, items in groups:
+        for item in items:
+            if item.active:
+                return item.endpoint
+    return ""

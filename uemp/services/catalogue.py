@@ -2,6 +2,7 @@
 catalogue.py — Programmes, courses and course allocations.
 
     save_program()     create or update a programme
+    delete_program()   remove a programme that has no students
     save_course()      create or update a course and the programmes it is offered to
     allocate_course()  assign a lecturer to a course for a semester
     remove_allocation()
@@ -15,8 +16,9 @@ from flask import current_app
 from ..extensions import db
 from ..models import (
     AccountStatus, Course, CourseAllocation, Department, Program, ResultStatus, Role, Semester,
-    SemesterTerm, User,
+    SemesterTerm, StudentProfile, User,
 )
+from ..models.course import course_programs
 from ..security.scope import can_access_department
 from . import audit
 from .errors import ServiceError
@@ -59,6 +61,19 @@ def save_program(actor: User, program: Program | None, *, name, code, degree, du
     audit.record(actor, "program.created" if is_new else "program.updated",
                  f"{'Created' if is_new else 'Updated'} programme {code} – {program.name}", program)
     return program
+
+
+def delete_program(actor: User, program: Program) -> None:
+    """Delete a programme. Refused while any student is enrolled on it."""
+    if not can_access_department(program.department_id, actor):
+        raise ServiceError("You can only manage programmes in your own department.")
+    students = db.session.scalar(db.select(db.func.count(StudentProfile.id)).filter_by(program_id=program.id)) or 0
+    if students:
+        raise ServiceError(f"{program.name} has {students} student(s). Move them to another programme first.")
+    # Stop offering its courses to this programme (the courses themselves stay).
+    db.session.execute(course_programs.delete().where(course_programs.c.program_id == program.id))
+    audit.record(actor, "program.deleted", f"Deleted programme {program.code} – {program.name}", program)
+    db.session.delete(program)
 
 
 # --------------------------------------------------------------------------- #

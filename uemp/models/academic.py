@@ -10,12 +10,12 @@ TABLES IN THIS FILE
 
 HOW THEY CONNECT
     Faculty 1──* Department 1──* Program
-    AcademicSession 1──* Semester (always exactly a first and a second)
+    AcademicSession 1──* Semester (a first and/or a second)
 """
 
-from datetime import date
+from datetime import date, datetime
 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import UniqueConstraint, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..extensions import db
@@ -86,10 +86,21 @@ class AcademicSession(TimestampMixin, db.Model):
     start_date: Mapped[date | None] = mapped_column(db.Date)
     end_date: Mapped[date | None] = mapped_column(db.Date)
     is_current: Mapped[bool] = mapped_column(default=False, nullable=False)
+    # A completed session is closed: its semesters are finished and locked.
+    is_completed: Mapped[bool] = mapped_column(default=False, server_default=false(), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(db.DateTime)
 
     semesters: Mapped[list["Semester"]] = relationship(
         back_populates="session", order_by="Semester.term", cascade="all, delete-orphan"
     )
+
+    @property
+    def status_label(self) -> str:
+        if self.is_completed:
+            return "Completed"
+        if self.is_current:
+            return "Current"
+        return "Upcoming"
 
     def __repr__(self) -> str:
         return f"<Session {self.name}>"
@@ -109,12 +120,27 @@ class Semester(TimestampMixin, db.Model):
     is_current: Mapped[bool] = mapped_column(default=False, nullable=False)
     # Students can only add/drop courses while this is True.
     registration_open: Mapped[bool] = mapped_column(default=False, nullable=False)
+    # Optional calendar dates for the semester.
+    start_date: Mapped[date | None] = mapped_column(db.Date)
+    end_date: Mapped[date | None] = mapped_column(db.Date)
+    # A completed semester is finished: registration stays closed for good.
+    is_completed: Mapped[bool] = mapped_column(default=False, server_default=false(), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(db.DateTime)
 
     session: Mapped[AcademicSession] = relationship(back_populates="semesters")
 
     @property
     def term_label(self) -> str:
         return SemesterTerm(self.term).label
+
+    @property
+    def status_label(self) -> str:
+        """Plain-English state shown on the sessions page."""
+        if self.is_completed:
+            return "Completed"
+        if self.is_current:
+            return "Current"
+        return "Not started"
 
     @property
     def name(self) -> str:

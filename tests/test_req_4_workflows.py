@@ -47,7 +47,7 @@ def test_workflow_2_lecturer_result_submission(client_as):
     allocation_id = re.search(r"/lecturer/courses/(\d+)", dashboard).group(1)
     assert "CSC 201" in dashboard
     # 3. Lecturer selects a course.  4. System displays the registered students.
-    page = lecturer.get(f"/lecturer/courses/{allocation_id}").get_data(as_text=True)
+    page = lecturer.get(f"/lecturer/courses/{allocation_id}?tab=scores").get_data(as_text=True)
     assert page.count('name="ca_') == 11
     # 5. Lecturer enters CA and examination scores.
     sheet = sheet_for("CSC 201")

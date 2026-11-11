@@ -10,8 +10,7 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -r requirements.txt
-    # --preload: load the app once before starting workers, so the demo data
-    # is seeded only once (not once per worker).
+    # --preload: initialize and verify the database schema before starting workers.
     startCommand: gunicorn run:app --preload --workers 2 --timeout 60 --bind 0.0.0.0:$PORT
     healthCheckPath: /health
     autoDeploy: true
@@ -23,6 +22,6 @@ services:
       - key: DATABASE_URL
         sync: false                  # paste your Neon connection string when asked
       - key: AUTO_SEED
-        value: "1"                   # create tables + demo data on first start
+        value: "0"                   # don't add demo accounts to the live database
       - key: PYTHON_VERSION
         value: "3.12.7"

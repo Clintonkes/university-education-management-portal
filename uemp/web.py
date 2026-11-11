@@ -11,6 +11,7 @@ import csv
 import io
 
 from flask import Response, abort, flash, request
+from flask_login import current_user
 from sqlalchemy.exc import IntegrityError
 
 from .extensions import db
@@ -75,3 +76,9 @@ def selected_semester() -> Semester | None:
     if semester_id:
         return db.session.get(Semester, semester_id) or abort(404)
     return Semester.current()
+
+
+def user_can_now(permission: str) -> bool:
+    """Shortcut for routes: may the signed-in user do this?"""
+    from .security import user_can
+    return user_can(current_user, permission)

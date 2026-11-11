@@ -125,3 +125,82 @@ def drop_course(student: User, registration_id: int) -> CourseRegistration:
     audit.record(student, "registration.dropped",
                  f"Dropped {registration.course.code} for {registration.semester.name}")
     return registration
+
+
+# --------------------------------------------------------------------------- #
+#  Administrator corrections (Super Admin)
+# --------------------------------------------------------------------------- #
+def _check_admin_editable(registration: CourseRegistration) -> None:
+    """A registration whose scores are recorded or locked must not be moved/removed."""
+    entry = registration.result
+    if entry is None:
+        return
+    if not entry.sheet.status_enum.is_editable:
+        raise ServiceError(f"{registration.course.code} results for this student are "
+                           f"{entry.sheet.status_enum.label.lower()}; reopen them before changing the registration.")
+    if entry.ca_score is not None or entry.exam_score is not None:
+        raise ServiceError(f"Scores are already recorded for {registration.course.code}; "
+                           "ask the lecturer to clear them before changing the registration.")
+
+
+def admin_update(actor: User, registration: CourseRegistration, *, course_id: int, registration_type: str,
+                 remarks: str | None) -> CourseRegistration:
+    """
+    Super Admin correction of a registration: swap the course (same semester),
+    set the registration type (regular / carry-over / elective) and add a note.
+    """
+    from ..models import Role  # local import: avoids a circular import at load time
+
+    if actor.role != Role.SUPER_ADMIN:
+        raise ServiceError("Only the Super Admin can edit course registrations.")
+    if registration_type not in CourseRegistration.TYPES:
+        raise ServiceError("Choose a valid registration type.")
+    remarks = (remarks or "").strip() or None
+    if remarks and len(remarks) > 500:
+        raise ServiceError("Remarks must be 500 characters or fewer.")
+
+    changes = []
+    if course_id != registration.course_id:
+        course = db.session.get(Course, course_id)
+        if course is None or not course.is_active:
+            raise ServiceError("Choose an active course.")
+        if course.semester_term != registration.semester.term:
+            raise ServiceError(f"{course.code} is a {course.term_label.lower()} course; this registration is for "
+                               f"the {registration.semester.term_label.lower()}.")
+        duplicate = db.session.scalar(db.select(CourseRegistration).filter_by(
+            student_id=registration.student_id, course_id=course.id, semester_id=registration.semester_id))
+        if duplicate:
+            raise ServiceError(f"The student is already registered for {course.code} this semester.")
+        _check_admin_editable(registration)
+        if registration.result is not None:  # empty score row on the old course's sheet
+            db.session.delete(registration.result)
+        changes.append(f"course {registration.course.code} → {course.code}")
+        registration.course_id = course.id
+        registration.course = course
+    if registration_type != registration.registration_type:
+        changes.append(f"type {registration.type_label} → {CourseRegistration.TYPES[registration_type]}")
+        registration.registration_type = registration_type
+    if remarks != registration.remarks:
+        changes.append("remarks updated")
+        registration.remarks = remarks
+    if not changes:
+        raise ServiceError("Nothing was changed.")
+
+    matric = registration.student.student_profile.matric_number
+    audit.record(actor, "registration.updated",
+                 f"{matric} {registration.semester.name}: " + "; ".join(changes), registration)
+    return registration
+
+
+def admin_delete(actor: User, registration: CourseRegistration) -> None:
+    from ..models import Role
+
+    if actor.role != Role.SUPER_ADMIN:
+        raise ServiceError("Only the Super Admin can delete course registrations.")
+    _check_admin_editable(registration)
+    if registration.result is not None:
+        db.session.delete(registration.result)
+    matric = registration.student.student_profile.matric_number
+    audit.record(actor, "registration.deleted",
+                 f"Removed {registration.course.code} from {matric} for {registration.semester.name}", registration)
+    db.session.delete(registration)
