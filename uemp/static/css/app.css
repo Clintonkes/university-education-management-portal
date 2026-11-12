@@ -134,6 +134,8 @@ body { background: var(--canvas); font-size: .935rem; }
 /* ---------- Score entry ---------- */
 .score-input { width: 84px; text-align: center; font-variant-numeric: tabular-nums; }
 .score-input.is-invalid { background-image: none; padding-right: .75rem; }
+.score-input.score-blocked { border-color: var(--bs-danger); box-shadow: 0 0 0 .2rem rgba(220, 53, 69, .2); }
+.score-hint { color: var(--bs-danger); font-size: .75rem; line-height: 1.2; margin-top: .25rem; max-width: 120px; margin-left: auto; margin-right: auto; }
 .sticky-actions { position: sticky; bottom: 0; background: rgba(255,255,255,.96); backdrop-filter: blur(6px);
   border-top: 1px solid var(--line); padding: .85rem 1.25rem; border-radius: 0 0 var(--radius) var(--radius); }
 

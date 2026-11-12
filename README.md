@@ -8,6 +8,7 @@ Built for the *Lead Web Praxis Media Limited — Practical Software Development 
 > A lecturer signs in, sees their allocated courses, opens a course to see the registered students, enters CA and exam scores, lets the system calculate totals and grades, saves a draft, and submits the results for departmental approval. The lecturer also gets status and feedback, a performance summary, and correction requests after submission.
 >
 > - **Sign in as:** `lecturer@uemp.edu.ng` / `Lecturer@1234` and open **CSC 201** (11 students, ready for scores).
+> - **Submission checklist** (deliverables, assessment areas, technical requirements, and where each is shown): **[docs/SUBMISSION.md](docs/SUBMISSION.md)**
 > - **Full test guide**, covering every lecturer capability and the end-to-end workflow, with expected results: **[docs/LECTURER_WORKFLOW.md](docs/LECTURER_WORKFLOW.md)**
 >
 > The Student and Administrator areas are included only to support this workflow: students register for the course, and the department approves the results.
@@ -19,9 +20,10 @@ Built for the *Lead Web Praxis Media Limited — Practical Software Development 
 | **Database** | SQLAlchemy 2 ORM — SQLite locally, PostgreSQL in production |
 | **Auth** | Flask-Login sessions, scrypt password hashing, CSRF protection (Flask-WTF) |
 | **UI** | Server-rendered Jinja templates, Bootstrap 5, responsive (mobile → desktop) |
-| **Tests** | 239 pytest tests (passing on SQLite **and** PostgreSQL) + 15 real-browser tests — see [docs/TEST_REPORT.md](docs/TEST_REPORT.md) |
+| **Tests** | 241 pytest tests (passing on SQLite **and** PostgreSQL) + 15 real-browser tests — see [docs/TEST_REPORT.md](docs/TEST_REPORT.md) |
 
 Lecturer workflow test guide: **[docs/LECTURER_WORKFLOW.md](docs/LECTURER_WORKFLOW.md)**
+Database design (ER diagram, every table): **[docs/DATABASE.md](docs/DATABASE.md)**
 Technical documentation (architecture, database / ER diagram, permission logic, security): **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**
 Deployment (GitHub + Neon + Render): **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** · Test report: **[docs/TEST_REPORT.md](docs/TEST_REPORT.md)**
 
@@ -143,8 +145,8 @@ A quick run-through follows. The step-by-step checklist with expected results is
 ├── requirements-dev.txt    # + lint and browser-test tools
 ├── render.yaml / Procfile  # deployment (Render web service, Neon database)
 ├── .github/workflows/      # GitHub Actions: lint + tests on SQLite, PostgreSQL, browser
-├── docs/                   # LECTURER_WORKFLOW (test guide), ARCHITECTURE (+ ER diagram), DEPLOYMENT, TEST_REPORT
-├── tests/                  # 239 pytest tests; tests/e2e = browser tests
+├── docs/                   # LECTURER_WORKFLOW (test guide), SUBMISSION, DATABASE, ARCHITECTURE (+ ER diagram), DEPLOYMENT, TEST_REPORT
+├── tests/                  # 241 pytest tests; tests/e2e = browser tests
 └── uemp/
     ├── __init__.py         # app factory: wires everything together
     ├── extensions.py       # database, login manager, CSRF objects
@@ -220,7 +222,7 @@ Put the app behind HTTPS (the production config only sends cookies over HTTPS).
 
 ```bash
 pip install -r requirements-dev.txt
-pytest -q                                                          # 239 tests, in-memory SQLite
+pytest -q                                                          # 241 tests, in-memory SQLite
 TEST_DATABASE_URL=postgresql://user:pass@localhost/uemp_test pytest -q   # same tests on PostgreSQL
 playwright install --with-deps chromium && RUN_E2E=1 pytest tests/e2e -v  # real-browser tests
 ```

@@ -184,9 +184,24 @@ def test_03_workflow2_lecturer_live_grades_draft_and_submit(server, browser):
 
     # Live preview: 35 + 40 = 75 -> A ; out-of-range CA is highlighted.
     first = rows.nth(0)
-    first.locator("[data-ca]").fill("45")
-    assert "is-invalid" in first.locator("[data-ca]").get_attribute("class")
-    first.locator("[data-ca]").fill("35")
+    ca = first.locator("[data-ca]")
+    # Typing 4 then 5: the 5 is refused (CA max is 40) and a message explains why.
+    ca.fill("")
+    ca.press_sequentially("45")
+    assert ca.input_value() == "4"
+    assert "cannot be more than 40" in first.inner_text()
+    ca.press_sequentially("x")                                # letters are refused too
+    assert ca.input_value() == "4"
+    ca.fill("45")                                             # pasting a too-high value is refused as well
+    assert ca.input_value() == "4"
+    # If a bad value still gets in (e.g. an older browser): box red, no total, Save/Submit disabled.
+    ca.evaluate("el => { el.value = '45'; el.dispatchEvent(new Event('input', {bubbles: true})); }")
+    first.locator("[data-exam]").fill("50")
+    assert "is-invalid" in ca.get_attribute("class")
+    assert first.locator("[data-total]").inner_text() == "—"
+    assert s.page.locator("button:has-text('Save draft')").is_disabled()
+    ca.fill("35")
+    assert not s.page.locator("button:has-text('Save draft')").is_disabled()
     first.locator("[data-exam]").fill("40")
     assert first.locator("[data-total]").inner_text() == "75"
     assert first.locator("[data-grade]").inner_text() == "A"
@@ -313,9 +328,19 @@ def test_08_mobile_layout_has_no_sideways_scroll(server, browser, email, passwor
 def test_09_sign_out(server, browser):
     s = Session(browser, server).login("student@uemp.edu.ng", "Student@1234")
     s.page.click(".topbar .dropdown button")
-    s.page.click("button:has-text('Sign out')")
-    s.wait()
-    assert "/login" in s.page.url and "signed out" in s.flash()
+    # Cancelling the dialog keeps the user signed in.
+    s.page.click(".dropdown-item:has-text('Log out')")
+    modal = s.page.locator("#confirmation-modal.show")
+    modal.wait_for()
+    assert "Log out?" in modal.inner_text() and "Stay signed in" in modal.inner_text()
+    modal.locator("button:has-text('Stay signed in')").click()
+    s.page.locator("#confirmation-modal.show").wait_for(state="hidden")
+    assert "/student" in s.page.url
+    # Confirming logs out.
+    s.page.click(".topbar .dropdown button")
+    s.confirm(".dropdown-item:has-text('Log out')")
+    s.page.wait_for_url("**/login**")
+    assert "logged out" in s.flash()
     s.go("/student/")
     assert "/login" in s.page.url
     s.close()

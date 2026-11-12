@@ -71,7 +71,8 @@
         <div class="small fw-semibold muted mb-2">Demo accounts — click to fill</div>
         <div class="d-grid gap-2">
           {% for label, email, pw in [("Super Admin", "admin@uemp.edu.ng", "Admin@1234"),
-                                      ("Department Admin (CSC)", "csc.admin@uemp.edu.ng", "Admin@1234"),
+                                      ("Department Admin (Computer Science)", "csc.admin@uemp.edu.ng", "Admin@1234"),
+                                      ("Department Admin (Economics)", "eco.admin@uemp.edu.ng", "Admin@1234"),
                                       ("Lecturer", "lecturer@uemp.edu.ng", "Lecturer@1234"),
                                       ("Student", "student@uemp.edu.ng", "Student@1234")] %}
             <div class="demo-chip d-flex justify-content-between" data-demo-email="{{ email }}" data-demo-password="{{ pw }}">

@@ -78,3 +78,16 @@ def test_security_headers_present(client):
     response = client.get("/login")
     assert response.headers["X-Frame-Options"] == "DENY"
     assert response.headers["X-Content-Type-Options"] == "nosniff"
+
+
+def test_login_page_lists_a_demo_account_for_every_role(client):
+    page = client.get("/login").get_data(as_text=True)
+    for email in ["admin@uemp.edu.ng", "csc.admin@uemp.edu.ng", "eco.admin@uemp.edu.ng",
+                  "lecturer@uemp.edu.ng", "student@uemp.edu.ng"]:
+        assert f'data-demo-email="{email}"' in page
+
+
+def test_log_out_button_asks_for_confirmation(as_student):
+    page = as_student.get("/student/").get_data(as_text=True)
+    assert 'data-confirm-title="Log out?"' in page and 'data-confirm-label="Log out"' in page
+    assert "You have been logged out." in as_student.post("/logout", follow_redirects=True).get_data(as_text=True)

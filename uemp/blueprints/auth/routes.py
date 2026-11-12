@@ -77,11 +77,11 @@ def login():
 @login_required
 def logout():
     # POST (not GET) so another site cannot log users out with a hidden image link.
-    audit.record(current_user, "auth.logout", f"{current_user.email} signed out")
+    audit.record(current_user, "auth.logout", f"{current_user.email} logged out")
     db.session.commit()
     logout_user()
     session.clear()
-    flash("You have been signed out.", "info")
+    flash("You have been logged out.", "info")
     return redirect(url_for("auth.login"))
 
 

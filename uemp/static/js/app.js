@@ -87,7 +87,14 @@
       form: trigger.closest("form"),
       submitter: trigger.matches("button, input") ? trigger : null,
     };
+    // Optional wording per button: data-confirm-title, data-confirm-label,
+    // data-confirm-cancel and data-confirm-style (a Bootstrap colour, e.g. "danger").
+    const accept = modalElement.querySelector("[data-confirmation-accept]");
     modalElement.querySelector("[data-confirmation-message]").textContent = trigger.dataset.confirm;
+    modalElement.querySelector(".modal-title").textContent = trigger.dataset.confirmTitle || "Please confirm";
+    modalElement.querySelector("[data-confirmation-cancel]").textContent = trigger.dataset.confirmCancel || "Cancel";
+    accept.textContent = trigger.dataset.confirmLabel || "Continue";
+    accept.className = `btn btn-${trigger.dataset.confirmStyle || "primary"}`;
     bootstrap.Modal.getOrCreateInstance(modalElement).show();
   });
 
@@ -206,27 +213,69 @@
     update();
   }
 
-  // 5. Live grade preview on the score sheet
+  // 5. Score sheet: limits enforced while typing, plus a live grade preview.
+  //    - A keystroke that would make a score too high (CA > 40, exam > 60) or
+  //      not a number is refused, and a short message explains why.
+  //    - If a bad value still gets in (e.g. pasted), the box turns red, the
+  //      total and grade stay blank, and Save/Submit are disabled until fixed.
+  //    The server checks the same limits again when saving.
+  const SCORE_PATTERN = /^\d{0,3}(\.\d{0,2})?$/;
+
+  function scoreProblem(input, value) {
+    const label = input.hasAttribute("data-ca") ? "CA" : "Exam";
+    const max = Number(input.max);
+    if (value === "") return null;
+    if (!SCORE_PATTERN.test(value)) return `${label} must be a number from 0 to ${max}.`;
+    if (Number(value) > max) return `${label} cannot be more than ${max}.`;
+    return null;
+  }
+
+  function showScoreMessage(input, message) {
+    let hint = input.parentElement.querySelector(".score-hint");
+    if (!hint) {
+      hint = document.createElement("div");
+      hint.className = "score-hint";
+      hint.setAttribute("role", "alert");
+      input.after(hint);
+    }
+    hint.textContent = message || "";
+    hint.hidden = !message;
+  }
+
   function initScoreSheet(root) {
     const sheet = root.querySelector("[data-score-sheet]");
     if (!sheet || sheet.dataset.ready) return;
     sheet.dataset.ready = "1";
+    const form = sheet.closest("form");
+    const actionButtons = form ? form.querySelectorAll("button[name=action]") : [];
     const scale = JSON.parse(sheet.dataset.scale); // [[min, grade, point], ...]
     scale.sort((a, b) => b[0] - a[0]);
     const gradeFor = (t) => (scale.find(([min]) => t >= min) || [0, "F"])[1];
+
+    const updateButtons = () => {
+      const invalid = sheet.querySelectorAll(".score-input.is-invalid").length > 0;
+      actionButtons.forEach((b) => { b.disabled = invalid; });
+    };
+
     sheet.querySelectorAll("tr[data-entry]").forEach((row) => {
       const ca = row.querySelector("[data-ca]");
       const exam = row.querySelector("[data-exam]");
       const totalCell = row.querySelector("[data-total]");
       const gradeCell = row.querySelector("[data-grade]");
       if (!ca || !exam) return;
+
       const recalc = () => {
+        let anyBad = false;
         [ca, exam].forEach((input) => {
-          const v = input.value.trim();
-          const bad = v !== "" && (isNaN(v) || Number(v) < 0 || Number(v) > Number(input.max));
-          input.classList.toggle("is-invalid", bad);
+          const problem = scoreProblem(input, input.value.trim());
+          input.classList.toggle("is-invalid", Boolean(problem));
+          input.setAttribute("aria-invalid", problem ? "true" : "false");
+          if (problem) showScoreMessage(input, problem);
+          else if (!input.dataset.blockedAt) showScoreMessage(input, "");
+          anyBad = anyBad || Boolean(problem);
         });
-        if (ca.value.trim() === "" || exam.value.trim() === "") {
+        updateButtons();
+        if (anyBad || ca.value.trim() === "" || exam.value.trim() === "") {
           totalCell.textContent = "—";
           gradeCell.innerHTML = '<span class="muted">—</span>';
           return;
@@ -236,7 +285,31 @@
         totalCell.textContent = Number.isInteger(t) ? t : t.toFixed(1);
         gradeCell.innerHTML = `<span class="grade grade-${g}">${g}</span>`;
       };
-      [ca, exam].forEach((input) => input.addEventListener("input", recalc));
+
+      [ca, exam].forEach((input) => {
+        // Refuse a keystroke (or paste) that would break the limit.
+        input.addEventListener("beforeinput", (event) => {
+          if (!event.inputType.startsWith("insert")) return; // deleting is always fine
+          const start = input.selectionStart ?? input.value.length;
+          const end = input.selectionEnd ?? input.value.length;
+          const next = (input.value.slice(0, start) + (event.data || "") + input.value.slice(end)).trim();
+          const problem = scoreProblem(input, next);
+          if (!problem) return;
+          event.preventDefault();
+          input.dataset.blockedAt = String(Date.now());
+          showScoreMessage(input, problem);
+          input.classList.add("score-blocked");
+          setTimeout(() => {
+            input.classList.remove("score-blocked");
+            if (Date.now() - Number(input.dataset.blockedAt) >= 2400) {
+              delete input.dataset.blockedAt;
+              if (!input.classList.contains("is-invalid")) showScoreMessage(input, "");
+            }
+          }, 2500);
+        });
+        input.addEventListener("input", recalc);
+      });
+      recalc();
     });
   }
 

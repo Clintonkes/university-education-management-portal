@@ -99,8 +99,9 @@ Sign in as **`lecturer@uemp.edu.ng` / `Lecturer@1234`**. Do the steps in order. 
 | 2 | Type CA `32` and Exam `45` for the first student. | **Total 77** and grade **A** appear immediately, before saving |
 | 3 | Fill in about half the students and click **Save draft**. | "Draft saved." The scores stay after reloading. A partial draft is allowed. |
 | 4 | Change one of the saved scores and save again. | The new value is kept. The change is recorded in the history. |
-| 5 | Type CA `45` (over 40) and save. | Box turns red; the server refuses: "CA for … must be between 0 and 40." |
-| 6 | Type `abc` or `-5` and save. | Refused: "must be a number" or "between 0 and …" |
+| 5 | In a CA box, type `4` then `5` (making 45, over 40). | The `5` is **not accepted**: the box keeps `4`, its border flashes red and shows "CA cannot be more than 40." The same applies to Exam above 60. No total is calculated from a too-high score. |
+| 6 | Type a letter or `-` in a score box, or paste `45`. | Refused the same way: "CA must be a number from 0 to 40." |
+| 6b | (Server check) The server applies the same limits when saving, even if the browser is bypassed. | A hand-made request with CA 45 is refused: "CA for … must be between 0 and 40." Covered by automated tests. |
 | 7 | Type a decimal, e.g. CA `32.5`. | Accepted. The total is calculated with the decimal. |
 
 **How grades are worked out** (configurable in `config.py`):
@@ -134,7 +135,8 @@ Sign in as **`lecturer@uemp.edu.ng` / `Lecturer@1234`**. Do the steps in order. 
 | 2 | Open `/admin/` or `/admin/students`. | **403** (lecturers cannot manage courses or students) |
 | 3 | Open `/admin/results`. | **403** (lecturers cannot approve results) |
 | 4 | Open `/super/`. | **403** |
-| 5 | Sign out, then open `/lecturer/`. | Sent to the login page |
+| 5 | Click your name (top right) → **Log out**. | A dialog asks "Log out?" with **Stay signed in** and **Log out**. Choosing Log out shows the login page. |
+| 6 | After logging out, open `/lecturer/`. | Sent to the login page |
 
 > Part B continues from here, with CSC 201 fully scored but not yet submitted.
 
